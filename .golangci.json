@@ -1,0 +1,51 @@
+{
+	"$schema": "https://golangci-lint.run/jsonschema/golangci.jsonschema.json",
+	"formatters": {
+		"enable": ["gofumpt"],
+		"exclusions": {
+			"generated": "strict",
+			"paths": [],
+			"warn-unused": false
+		},
+		"settings": {
+			"gofumpt": {
+				"extra-rules": true
+			}
+		}
+	},
+	"issues": {
+		"fix": false
+	},
+	"linters": {
+		"enable": [
+			"govet",
+			"staticcheck",
+			"errcheck",
+			"ineffassign",
+			"unused",
+			"errorlint",
+			"gocritic",
+			"misspell",
+			"bodyclose",
+			"revive",
+			"prealloc",
+			"unparam",
+			"paralleltest",
+			"goconst",
+			"importas",
+			"wsl_v5",
+			"gosec",
+			"nolintlint",
+			"noctx",
+			"exhaustive",
+			"nilnil"
+		]
+	},
+	"output": {
+		"show-stats": true
+	},
+	"run": {
+		"timeout": "5m"
+	},
+	"version": "2"
+}

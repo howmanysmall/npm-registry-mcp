@@ -1,0 +1,102 @@
+{
+	"folders": [
+		{
+			"path": ".",
+		},
+	],
+	"settings": {
+		"[github-actions-workflow]": {
+			"editor.defaultFormatter": "redhat.vscode-yaml",
+			"editor.formatOnSave": true,
+		},
+		"[go]": {
+			"editor.codeActionsOnSave": {},
+			"editor.defaultFormatter": "golang.go",
+			"editor.formatOnSave": true,
+			"editor.insertSpaces": false,
+		},
+		"[json]": {
+			"editor.defaultFormatter": "biomejs.biome",
+			"editor.formatOnSave": true,
+			"editor.quickSuggestions": { "strings": true },
+			"editor.suggest.insertMode": "replace",
+		},
+		"[jsonc]": {
+			"editor.defaultFormatter": "biomejs.biome",
+			"editor.formatOnSave": true,
+			"editor.quickSuggestions": { "strings": true },
+			"editor.suggest.insertMode": "replace",
+		},
+		"[snippets]": {
+			"editor.defaultFormatter": "biomejs.biome",
+			"editor.formatOnSave": true,
+			"editor.quickSuggestions": { "strings": true },
+			"editor.suggest.insertMode": "replace",
+		},
+		"[yaml]": {
+			"editor.defaultFormatter": "redhat.vscode-yaml",
+			"editor.formatOnSave": true,
+		},
+
+		"editor.acceptSuggestionOnCommitCharacter": true,
+		"editor.acceptSuggestionOnEnter": "on",
+		"editor.codeActionsOnSave": {
+			"source.addMissingImports": "explicit",
+			"source.addMissingImports.ts": "explicit",
+			"source.biome": "explicit",
+			"source.fixAll.biome": "explicit",
+			"source.organizeImports": "never",
+			"source.organizeImports.biome": "explicit",
+			"source.removeUnusedImports": "explicit",
+		},
+
+		"go.buildFlags": ["-race"],
+		"go.coverageDecorator": {
+			"coveredHighlightColor": "rgba(64, 128, 64, 0.5)",
+			"type": "highlight",
+			"uncoveredHighlightColor": "rgba(128, 64, 64, 0.5)",
+		},
+		"go.coverageOptions": "showUncoveredCodeOnly",
+		"go.coverOnTestPackage": true,
+		"go.delveConfig": {
+			"showGlobalVariables": true,
+		},
+		"go.lintFlags": [],
+		"go.lintOnSave": "package",
+		"go.lintTool": "golangci-lint-v2",
+		"go.testFlags": ["-race", "-count=1"],
+		"go.testOnSave": false,
+		"go.toolsEnvVars": {
+			"PATH": "${env:PATH}:${env:HOME}/go/bin",
+		},
+		"go.useLanguageServer": true,
+		"go.vetFlags": ["-all"],
+		"gopls": {
+			"formatting.gofumpt": true,
+			"ui.codelenses": {
+				"generate": true,
+				"regenerate_cgo": true,
+				"test": true,
+				"tidy": true,
+				"upgrade_dependency": true,
+				"vendor": true,
+			},
+			"ui.completion.usePlaceholders": true,
+			"ui.diagnostic.analyses": {
+				"shadow": true,
+				"unusedparams": true,
+				"unusedwrite": true,
+			},
+			"ui.diagnostic.staticcheck": true,
+			"ui.inlayHints": {
+				"assignVariableTypes": true,
+				"compositeLiteralFields": true,
+				"compositeLiteralTypes": true,
+				"constantValues": true,
+				"parameterNames": true,
+				"rangeVariableTypes": true,
+			},
+			"ui.semanticTokens": true,
+		},
+	},
+}

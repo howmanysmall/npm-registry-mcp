@@ -1,0 +1,7 @@
+{
+	"devDependencies": { "@biomejs/biome": "^2.3.10" },
+	"name": "npm-registry-mcp",
+	"private": true,
+	"scripts": {},
+	"type": "module"
+}
