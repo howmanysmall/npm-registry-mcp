@@ -72,3 +72,4 @@ node_modules
 /test_perf_dst/
 /bench_dst_*/
 /.unison_home/
+/docs/plans/
