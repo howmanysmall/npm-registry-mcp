@@ -22,51 +22,6 @@ type RiskAssessment struct {
 	Flags       []string  `json:"flags,omitempty"`
 }
 
-// Permissive licenses (low risk)
-var permissiveLicenses = map[string]bool{
-	"MIT":          true,
-	"Apache-2.0":   true,
-	"BSD-2-Clause": true,
-	"BSD-3-Clause": true,
-	"ISC":          true,
-	"0BSD":         true,
-	"Unlicense":    true,
-	"WTFPL":        true,
-	"CC0-1.0":      true,
-	"Zlib":         true,
-	"BSL-1.0":      true, // Boost Software License
-}
-
-// Weak copyleft licenses (medium risk)
-var weakCopyleftLicenses = map[string]bool{
-	"LGPL-2.0": true,
-	"LGPL-2.1": true,
-	"LGPL-3.0": true,
-	"MPL-2.0":  true,
-	"EPL-1.0":  true,
-	"EPL-2.0":  true,
-	"CDDL-1.0": true,
-	"CDDL-1.1": true,
-}
-
-// Strong copyleft licenses (high risk)
-var strongCopyleftLicenses = map[string]bool{
-	"GPL-2.0":       true,
-	"GPL-3.0":       true,
-	"AGPL-3.0":      true,
-	"GPL-2.0-only":  true,
-	"GPL-3.0-only":  true,
-	"AGPL-3.0-only": true,
-}
-
-// Problematic licenses (critical risk)
-var problematicLicenses = map[string]bool{
-	"SSPL-1.0":       true,
-	"BUSL-1.1":       true, // Business Source License
-	"Commons-Clause": true,
-	"UNLICENSED":     true,
-}
-
 // AssessRisk assesses the risk level of a license
 func AssessRisk(spdxID string) RiskAssessment {
 	normalized := normalizeLicense(spdxID)
@@ -144,6 +99,21 @@ func normalizeLicense(s string) string {
 }
 
 func isPermissive(normalized string) bool {
+	// Permissive licenses (low risk)
+	permissiveLicenses := map[string]bool{
+		"MIT":          true,
+		"Apache-2.0":   true,
+		"BSD-2-Clause": true,
+		"BSD-3-Clause": true,
+		"ISC":          true,
+		"0BSD":         true,
+		"Unlicense":    true,
+		"WTFPL":        true,
+		"CC0-1.0":      true,
+		"Zlib":         true,
+		"BSL-1.0":      true, // Boost Software License
+	}
+
 	for license := range permissiveLicenses {
 		if strings.EqualFold(normalized, license) {
 			return true
@@ -154,6 +124,18 @@ func isPermissive(normalized string) bool {
 }
 
 func isWeakCopyleft(normalized string) bool {
+	// Weak copyleft licenses (medium risk)
+	weakCopyleftLicenses := map[string]bool{
+		"LGPL-2.0": true,
+		"LGPL-2.1": true,
+		"LGPL-3.0": true,
+		"MPL-2.0":  true,
+		"EPL-1.0":  true,
+		"EPL-2.0":  true,
+		"CDDL-1.0": true,
+		"CDDL-1.1": true,
+	}
+
 	for license := range weakCopyleftLicenses {
 		if strings.EqualFold(normalized, license) {
 			return true
@@ -169,6 +151,16 @@ func isWeakCopyleft(normalized string) bool {
 }
 
 func isStrongCopyleft(normalized string) bool {
+	// Strong copyleft licenses (high risk)
+	strongCopyleftLicenses := map[string]bool{
+		"GPL-2.0":       true,
+		"GPL-3.0":       true,
+		"AGPL-3.0":      true,
+		"GPL-2.0-only":  true,
+		"GPL-3.0-only":  true,
+		"AGPL-3.0-only": true,
+	}
+
 	for license := range strongCopyleftLicenses {
 		if strings.EqualFold(normalized, license) {
 			return true
@@ -184,6 +176,14 @@ func isStrongCopyleft(normalized string) bool {
 }
 
 func isProblematic(normalized string) bool {
+	// Problematic licenses (critical risk)
+	problematicLicenses := map[string]bool{
+		"SSPL-1.0":       true,
+		"BUSL-1.1":       true, // Business Source License
+		"Commons-Clause": true,
+		"UNLICENSED":     true,
+	}
+
 	for license := range problematicLicenses {
 		if strings.EqualFold(normalized, license) {
 			return true
