@@ -17,8 +17,7 @@ function _log_error
 end
 
 function _prompt
-    printf (set_color brblack)"["(set_color magenta)"?"(set_color brblack)"] "(set_color normal)"%s " $argv[1]
-    read response
+    read -P (set_color brblack)"["(set_color magenta)"?"(set_color brblack)"] "(set_color normal)"$argv[1] " response
     echo $response
 end
 
