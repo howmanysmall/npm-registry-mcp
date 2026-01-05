@@ -23,10 +23,10 @@ builds:
       - -X main.serverVersion={{.Version}}
 
 archives:
-  - formats: ['tar.gz']
+  - formats: ["tar.gz"]
     format_overrides:
       - goos: windows
-        formats: ['zip']
+        formats: ["zip"]
     name_template: >-
       {{ .ProjectName }}_
       {{- .Os }}_
@@ -34,15 +34,15 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
 
 checksum:
-  name_template: 'checksums.txt'
+  name_template: "checksums.txt"
 
 changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
-      - '^ci:'
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
       - Merge pull request
       - Merge branch
 

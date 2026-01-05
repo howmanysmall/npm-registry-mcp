@@ -62,8 +62,8 @@ Thumbs.db
 _coverprofile
 
 # Ignore binary produced by `go build` when placed in repo root
-# If your CLI binary is named `relay` or other, explicitly ignore it if desired
-/relay/
+# If your CLI binary is named `npm-registry-mcp` or other, explicitly ignore it if desired
+/npm-registry-mcp/
 /dist/
 
 node_modules

@@ -88,7 +88,6 @@ type InstallHandler = func(context.Context, *mcp.CallToolRequest, InstallInput) 
 // NewInstallHandler creates a new install handler
 func NewInstallHandler(npmClient *npm.Client, ghClient *github.Client, _ *cache.Cache) InstallHandler {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, input InstallInput) (*mcp.CallToolResult, InstallOutput, error) {
-		// Get package info
 		pkg, err := npmClient.GetPackage(ctx, input.Package)
 		if err != nil {
 			return nil, InstallOutput{}, fmt.Errorf("failed to get package: %w", err)
@@ -97,132 +96,135 @@ func NewInstallHandler(npmClient *npm.Client, ghClient *github.Client, _ *cache.
 		latestVersion := pkg.DistTags["latest"]
 		latestMeta := pkg.Versions[latestVersion]
 
-		// Get download stats
-		weeklyDownloads := 0
-		prevWeekDownloads := 0
+		weeklyDownloads, prevWeekDownloads := getDownloadStats(ctx, npmClient, input.Package)
+		commitCount, openIssues := getGitHubStats(ctx, ghClient, pkg.Repository)
 
-		if dl, err := npmClient.GetDownloads(ctx, input.Package, "last-week"); err == nil {
-			weeklyDownloads = dl.Downloads
-		}
-
-		if dl, err := npmClient.GetDownloads(ctx, input.Package, "last-month"); err == nil {
-			// Approximate previous week from monthly
-			prevWeekDownloads = dl.Downloads / 4
-		}
-
-		// Parse last publish time
-		var lastPublish time.Time
-
-		if t, ok := pkg.Time[latestVersion]; ok {
-			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
-				lastPublish = parsed
-			}
-		}
-
-		// Get GitHub info if available
-		commitCount := 0
-		openIssues := 0
-
-		if pkg.Repository != nil && ghClient != nil {
-			owner, repo := parseGitHubURL(pkg.Repository.URL)
-			if owner != "" && repo != "" {
-				if repoInfo, err := ghClient.GetRepository(ctx, owner, repo); err == nil {
-					openIssues = repoInfo.OpenIssuesCount
-				}
-
-				if commits, err := ghClient.GetCommits(ctx, owner, repo, 90); err == nil {
-					commitCount = len(commits)
-				}
-			}
-		}
-
-		// Check TypeScript support
+		lastPublish := parseLastPublish(pkg, latestVersion)
 		tsSupport, tsStatus := getTypeScriptSupport(latestMeta)
-
-		// Assess license risk
 		licenseRisk := license.AssessRisk(pkg.License)
 
-		// Calculate health score
-		healthInput := health.Input{
+		healthResult := health.CalculateScore(health.Input{
 			LastPublish:       lastPublish,
 			WeeklyDownloads:   weeklyDownloads,
 			PrevWeekDownloads: prevWeekDownloads,
 			DirectDeps:        len(latestMeta.Dependencies),
-			OutdatedDeps:      0, // Would need additional API call
+			OutdatedDeps:      0,
 			CommitCount90d:    commitCount,
 			OpenIssues:        openIssues,
 			MaintainerCount:   len(pkg.Maintainers),
-			VulnCount:         0, // Would need security API
-		}
+			VulnCount:         0,
+		})
 
-		healthResult := health.CalculateScore(healthInput)
-
-		// Format size
-		sizeStr := statusUnknown
-		if latestMeta.Dist.UnpackedSize > 0 {
-			sizeStr = formatBytes(latestMeta.Dist.UnpackedSize)
-		}
-
-		// Format download trend
-		trend := getDownloadTrend(weeklyDownloads, prevWeekDownloads)
-
-		// Determine popularity status
-		popStatus := getPopularityStatus(weeklyDownloads)
-
-		// Build output
-		output := InstallOutput{
-			Package: pkg.Name,
-			Version: latestVersion,
-			Verdict: string(healthResult.Verdict),
-			Score:   healthResult.Score,
-
-			Maintenance: MaintenanceInfo{
-				LastPublish: formatTimeAgo(lastPublish),
-				Status:      getMaintenanceStatus(healthResult.Factors),
-			},
-
-			Dependencies: DependencyInfo{
-				Direct:     len(latestMeta.Dependencies),
-				Transitive: 0, // Would need full tree resolution
-				Outdated:   0,
-				Status:     statusUnknown,
-			},
-
-			Security: SecurityInfo{
-				Vulnerabilities: 0,
-				Status:          statusUnknown,
-			},
-
-			Popularity: PopularityInfo{
-				WeeklyDownloads: weeklyDownloads,
-				Trend:           trend,
-				Status:          popStatus,
-			},
-
-			Size: SizeInfo{
-				Unpacked: sizeStr,
-			},
-
-			TypeScript: TypeScriptInfo{
-				Support: tsSupport,
-				Status:  tsStatus,
-			},
-
-			License: LicenseInfo{
-				SPDX: pkg.License,
-				Risk: string(licenseRisk.Level),
-			},
-
-			Warnings: healthResult.Warnings,
-		}
-
-		// Add license warnings if applicable
-		if licenseRisk.Level == license.RiskHigh || licenseRisk.Level == license.RiskCritical {
-			output.Warnings = append(output.Warnings, licenseRisk.Description)
-		}
+		output := buildInstallOutput(pkg, latestMeta, healthResult, lastPublish, weeklyDownloads, prevWeekDownloads, tsSupport, tsStatus, licenseRisk)
 
 		return nil, output, nil
 	}
+}
+
+func getDownloadStats(ctx context.Context, client *npm.Client, pkgName string) (int, int) {
+	weeklyDownloads := 0
+	prevWeekDownloads := 0
+
+	if dl, err := client.GetDownloads(ctx, pkgName, "last-week"); err == nil {
+		weeklyDownloads = dl.Downloads
+	}
+
+	if dl, err := client.GetDownloads(ctx, pkgName, "last-month"); err == nil {
+		prevWeekDownloads = dl.Downloads / 4
+	}
+
+	return weeklyDownloads, prevWeekDownloads
+}
+
+func getGitHubStats(ctx context.Context, client *github.Client, repo *npm.Repository) (int, int) {
+	if repo == nil || client == nil {
+		return 0, 0
+	}
+
+	owner, repoName := parseGitHubURL(repo.URL)
+	if owner == "" || repoName == "" {
+		return 0, 0
+	}
+
+	openIssues := 0
+	commitCount := 0
+
+	if repoInfo, err := client.GetRepository(ctx, owner, repoName); err == nil {
+		openIssues = repoInfo.OpenIssuesCount
+	}
+
+	if commits, err := client.GetCommits(ctx, owner, repoName, 90); err == nil {
+		commitCount = len(commits)
+	}
+
+	return commitCount, openIssues
+}
+
+func parseLastPublish(pkg *npm.PackageResponse, version string) time.Time {
+	if t, ok := pkg.Time[version]; ok {
+		if parsed, err := time.Parse(time.RFC3339, t); err == nil {
+			return parsed
+		}
+	}
+
+	return time.Time{}
+}
+
+func buildInstallOutput(
+	pkg *npm.PackageResponse,
+	meta npm.PackageVersion,
+	healthResult health.Result,
+	lastPublish time.Time,
+	weeklyDownloads, prevWeekDownloads int,
+	tsSupport, tsStatus string,
+	licenseRisk license.RiskAssessment,
+) InstallOutput {
+	sizeStr := statusUnknown
+	if meta.Dist.UnpackedSize > 0 {
+		sizeStr = formatBytes(meta.Dist.UnpackedSize)
+	}
+
+	output := InstallOutput{
+		Package: pkg.Name,
+		Version: meta.Version,
+		Verdict: string(healthResult.Verdict),
+		Score:   healthResult.Score,
+
+		Maintenance: MaintenanceInfo{
+			LastPublish: formatTimeAgo(lastPublish),
+			Status:      getMaintenanceStatus(healthResult.Factors),
+		},
+
+		Dependencies: DependencyInfo{Direct: len(meta.Dependencies), Transitive: 0, Outdated: 0, Status: statusUnknown},
+
+		Security: SecurityInfo{Vulnerabilities: 0, Status: statusUnknown},
+
+		Popularity: PopularityInfo{
+			WeeklyDownloads: weeklyDownloads,
+			Trend:           getDownloadTrend(weeklyDownloads, prevWeekDownloads),
+			Status:          getPopularityStatus(weeklyDownloads),
+		},
+
+		Size: SizeInfo{Unpacked: sizeStr},
+
+		TypeScript: TypeScriptInfo{
+			Support: tsSupport,
+			Status:  tsStatus,
+		},
+
+		License: LicenseInfo{
+			SPDX: pkg.License,
+			Risk: string(licenseRisk.Level),
+		},
+
+		Warnings: healthResult.Warnings,
+	}
+
+	if licenseRisk.Level == license.RiskHigh || licenseRisk.Level == license.RiskCritical {
+		output.Warnings = append(output.Warnings, licenseRisk.Description)
+	}
+
+	return output
 }
 
 // InstallTool returns the tool definition for should-i-install

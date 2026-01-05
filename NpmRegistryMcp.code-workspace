@@ -10,7 +10,9 @@
 			"editor.formatOnSave": true,
 		},
 		"[go]": {
-			"editor.codeActionsOnSave": {},
+			"editor.codeActionsOnSave": {
+				"source.organizeImports": "explicit",
+			},
 			"editor.defaultFormatter": "golang.go",
 			"editor.formatOnSave": true,
 			"editor.insertSpaces": false,
@@ -73,6 +75,7 @@
 		"go.vetFlags": ["-all"],
 		"gopls": {
 			"formatting.gofumpt": true,
+			"formatting.local": "gofumpt",
 			"ui.codelenses": {
 				"generate": true,
 				"regenerate_cgo": true,

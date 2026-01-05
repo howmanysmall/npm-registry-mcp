@@ -38,7 +38,24 @@
 			"nolintlint",
 			"noctx",
 			"exhaustive",
-			"nilnil"
+			"nilnil",
+			"makezero",
+			"forcetypeassert",
+			"nilerr",
+			"gocognit",
+			"nestif",
+			"predeclared",
+			"thelper",
+			"copyloopvar",
+			"intrange",
+			"unconvert",
+			"wastedassign",
+			"whitespace",
+			"err113",
+			"testpackage",
+			"gochecknoglobals",
+			"gochecknoinits",
+			"funlen"
 		]
 	},
 	"output": {

@@ -122,7 +122,7 @@ func (client *Client) doJSON(ctx context.Context, url string, result any) error 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+		return fmt.Errorf("%w: %d", ErrUnexpectedStatus, resp.StatusCode)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
@@ -134,6 +134,7 @@ func (client *Client) doJSON(ctx context.Context, url string, result any) error 
 
 // Sentinel errors
 var (
-	ErrNotFound    = errors.New("not found")
-	ErrRateLimited = errors.New("rate limited")
+	ErrNotFound         = errors.New("not found")
+	ErrRateLimited      = errors.New("rate limited")
+	ErrUnexpectedStatus = errors.New("unexpected status")
 )

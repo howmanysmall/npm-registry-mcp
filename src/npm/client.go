@@ -4,6 +4,7 @@ package npm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -133,7 +134,7 @@ func (c *Client) doJSON(ctx context.Context, url string, result any) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+		return fmt.Errorf("%w: %d", ErrUnexpectedStatus, resp.StatusCode)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
@@ -142,3 +143,8 @@ func (c *Client) doJSON(ctx context.Context, url string, result any) error {
 
 	return nil
 }
+
+// Sentinel errors
+var (
+	ErrUnexpectedStatus = errors.New("unexpected status")
+)
