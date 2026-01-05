@@ -1,6 +1,81 @@
 package npm
 
-import "time"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"time"
+)
+
+// ErrInvalidFlexInt is returned when FlexInt unmarshaling fails.
+var ErrInvalidFlexInt = errors.New("cannot unmarshal into FlexInt")
+
+// ErrInvalidFlexEngines is returned when FlexEngines unmarshaling fails.
+var ErrInvalidFlexEngines = errors.New("cannot unmarshal into FlexEngines")
+
+// FlexInt is an integer that can be unmarshaled from either a JSON number or string.
+// This handles cases where APIs return numbers as strings.
+type FlexInt int
+
+// UnmarshalJSON implements custom unmarshaling to handle both int and string values.
+func (f *FlexInt) UnmarshalJSON(data []byte) error {
+	// Try unmarshaling as int first
+	var i int
+	if err := json.Unmarshal(data, &i); err == nil {
+		*f = FlexInt(i)
+		return nil
+	}
+
+	// Try unmarshaling as string
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		if s == "" {
+			*f = 0
+			return nil
+		}
+
+		parsed, err := strconv.Atoi(s)
+		if err != nil {
+			return fmt.Errorf("cannot parse string %q as int: %w", s, err)
+		}
+
+		*f = FlexInt(parsed)
+
+		return nil
+	}
+
+	return fmt.Errorf("%w: %s", ErrInvalidFlexInt, data)
+}
+
+// FlexEngines handles the engines field which can be either a map[string]string
+// or an array of strings (for very old packages like lodash v0.1.0).
+type FlexEngines map[string]string
+
+// UnmarshalJSON implements custom unmarshaling to handle both map and array formats.
+func (f *FlexEngines) UnmarshalJSON(data []byte) error {
+	// Try unmarshaling as map first (most common case)
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err == nil {
+		*f = FlexEngines(m)
+		return nil
+	}
+
+	// Try unmarshaling as array (old packages like lodash v0.1.0)
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		result := make(map[string]string, len(arr))
+		for _, engine := range arr {
+			result[engine] = "*"
+		}
+
+		*f = FlexEngines(result)
+
+		return nil
+	}
+
+	return fmt.Errorf("%w: %s", ErrInvalidFlexEngines, data)
+}
 
 // SearchResponse is the response from registry.npmjs.org/-/v1/search
 type SearchResponse struct {
@@ -15,7 +90,7 @@ type SearchObject struct {
 	Score       Score         `json:"score"`
 	SearchScore float64       `json:"searchScore"`
 	Downloads   Downloads     `json:"downloads,omitempty"`
-	Dependents  int           `json:"dependents,omitempty"`
+	Dependents  FlexInt       `json:"dependents,omitempty"`
 }
 
 // SearchPackage contains package metadata from search results
@@ -101,7 +176,7 @@ type PackageVersion struct {
 	Dependencies    map[string]string `json:"dependencies"`
 	DevDependencies map[string]string `json:"devDependencies"`
 	PeerDeps        map[string]string `json:"peerDependencies"`
-	Engines         map[string]string `json:"engines"`
+	Engines         FlexEngines       `json:"engines"`
 	Dist            Dist              `json:"dist"`
 }
 
