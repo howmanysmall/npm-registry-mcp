@@ -42,6 +42,9 @@ jobs:
         with:
           go-version: "1.25"
 
+      - name: Strip $schema from golangci config
+        run: jq 'del(."$schema")' .golangci.json > .golangci.json.tmp && mv .golangci.json.tmp .golangci.json
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
