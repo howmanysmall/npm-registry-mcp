@@ -14,10 +14,8 @@ import (
 
 const testPackageName = "lodash"
 
-func TestInstallTool(t *testing.T) {
-	t.Parallel()
-
-	npmServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func getNpmServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		switch r.URL.Path {
@@ -45,6 +43,12 @@ func TestInstallTool(t *testing.T) {
 			_, _ = w.Write([]byte(`{"downloads": 180000000, "package": "lodash"}`))
 		}
 	}))
+}
+
+func TestInstallTool(t *testing.T) {
+	t.Parallel()
+
+	npmServer := getNpmServer()
 	defer npmServer.Close()
 
 	ghServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

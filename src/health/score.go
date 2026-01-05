@@ -49,80 +49,92 @@ type Result struct {
 	Warnings []string `json:"warnings"`
 }
 
-// CalculateScore calculates the health score
-func CalculateScore(input Input) Result {
-	var (
-		factors     []Factor
-		warnings    []string
-		totalScore  = 0
-		totalWeight = 0
-	)
-
-	// Factor 1: Last publish (25%)
-	publishScore, publishFactor := scoreLastPublish(input.LastPublish)
-	factors = append(factors, publishFactor)
-	totalScore += publishScore * 25
-	totalWeight += 25
-
-	if publishScore < 50 {
-		warnings = append(warnings, fmt.Sprintf("Last published %s", publishFactor.Value))
+func determineVerdict(
+	score int,
+	warnings int,
+	vulnCount int,
+) Verdict {
+	if score < 40 || vulnCount > 0 {
+		return VerdictNo
 	}
 
-	// Factor 2: Download trend (20%)
-	trendScore, trendFactor := scoreDownloadTrend(input.WeeklyDownloads, input.PrevWeekDownloads)
-	factors = append(factors, trendFactor)
-	totalScore += trendScore * 20
+	if score < 70 || warnings > 0 {
+		return VerdictCaution
+	}
+
+	return VerdictYes
+}
+
+func computeFactors(input Input) (
+	factors []Factor,
+	warnings []string,
+	totalScore int,
+	totalWeight int,
+) {
+	var (
+		s int
+		f Factor
+	)
+
+	s, f = scoreLastPublish(input.LastPublish)
+	factors = append(factors, f)
+	totalScore += s * 25
+	totalWeight += 25
+
+	if s < 50 {
+		warnings = append(warnings, fmt.Sprintf("Last published %s", f.Value))
+	}
+
+	s, f = scoreDownloadTrend(input.WeeklyDownloads, input.PrevWeekDownloads)
+	factors = append(factors, f)
+	totalScore += s * 20
 	totalWeight += 20
 
-	// Factor 3: Outdated dependencies (20%)
-	outdatedScore, outdatedFactor := scoreOutdatedDeps(input.DirectDeps, input.OutdatedDeps)
-	factors = append(factors, outdatedFactor)
-	totalScore += outdatedScore * 20
+	s, f = scoreOutdatedDeps(input.DirectDeps, input.OutdatedDeps)
+	factors = append(factors, f)
+	totalScore += s * 20
 	totalWeight += 20
 
-	if outdatedScore < 50 {
+	if s < 50 {
 		warnings = append(warnings, fmt.Sprintf("%d outdated dependencies", input.OutdatedDeps))
 	}
 
-	// Factor 4: Commit activity (15%)
-	commitScore, commitFactor := scoreCommitActivity(input.CommitCount90d)
-	factors = append(factors, commitFactor)
-	totalScore += commitScore * 15
+	s, f = scoreCommitActivity(input.CommitCount90d)
+	factors = append(factors, f)
+	totalScore += s * 15
 	totalWeight += 15
 
-	// Factor 5: Maintainer count (10%)
-	maintainerScore, maintainerFactor := scoreMaintainers(input.MaintainerCount)
-	factors = append(factors, maintainerFactor)
-	totalScore += maintainerScore * 10
+	s, f = scoreMaintainers(input.MaintainerCount)
+	factors = append(factors, f)
+	totalScore += s * 10
 	totalWeight += 10
 
 	if input.MaintainerCount == 1 {
 		warnings = append(warnings, "Bus factor: 1")
 	}
 
-	// Factor 6: Vulnerabilities (10%)
-	vulnScore, vulnFactor := scoreVulnerabilities(input.VulnCount)
-	factors = append(factors, vulnFactor)
-	totalScore += vulnScore * 10
+	s, f = scoreVulnerabilities(input.VulnCount)
+	factors = append(factors, f)
+	totalScore += s * 10
 	totalWeight += 10
 
 	if input.VulnCount > 0 {
 		warnings = append(warnings, fmt.Sprintf("%d known vulnerabilities", input.VulnCount))
 	}
 
-	// Calculate final score
+	return factors, warnings, totalScore, totalWeight
+}
+
+// CalculateScore calculates the health score
+func CalculateScore(input Input) Result {
+	factors, warnings, totalScore, totalWeight := computeFactors(input)
+
 	finalScore := 0
 	if totalWeight > 0 {
 		finalScore = totalScore / totalWeight
 	}
 
-	// Determine verdict
-	verdict := VerdictYes
-	if finalScore < 40 || input.VulnCount > 0 {
-		verdict = VerdictNo
-	} else if finalScore < 70 || len(warnings) > 0 {
-		verdict = VerdictCaution
-	}
+	verdict := determineVerdict(finalScore, len(warnings), input.VulnCount)
 
 	return Result{
 		Score:    finalScore,

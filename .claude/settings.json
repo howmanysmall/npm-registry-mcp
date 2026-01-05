@@ -1,5 +1,18 @@
 {
 	"enabledPlugins": {
 		"gopls-lsp@claude-plugins-official": true
+	},
+	"hooks": {
+		"PostToolUse": [
+			{
+				"hooks": [
+					{
+						"command": ".claude/hooks/quality-check.sh",
+						"type": "command"
+					}
+				],
+				"matcher": "Edit|Write|MultiEdit"
+			}
+		]
 	}
 }

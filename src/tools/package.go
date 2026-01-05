@@ -13,24 +13,22 @@ type PackageInput struct {
 	Name string `json:"name" jsonschema:"NPM package name"`
 }
 
-// PackageOutput is the output for the get-npm-package tool
+// PackageOutput is the output for the get-npm-package-details tool
 type PackageOutput struct {
-	Name           string            `json:"name"`
-	Version        string            `json:"version"`
-	Description    string            `json:"description"`
-	License        string            `json:"license"`
-	Homepage       string            `json:"homepage,omitempty"`
-	Repository     string            `json:"repository,omitempty"`
-	Maintainers    []string          `json:"maintainers"`
-	Keywords       []string          `json:"keywords,omitempty"`
-	Dependencies   map[string]string `json:"dependencies,omitempty"`
-	RecentVersions []VersionInfo     `json:"recentVersions"`
-}
-
-// VersionInfo contains version metadata
-type VersionInfo struct {
-	Version     string `json:"version"`
-	PublishedAt string `json:"publishedAt"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	LatestVersion    string            `json:"latestVersion"`
+	License          string            `json:"license"`
+	Homepage         string            `json:"homepage,omitempty"`
+	Repository       string            `json:"repository,omitempty"`
+	Maintainers      []string          `json:"maintainers"`
+	Keywords         []string          `json:"keywords,omitempty"`
+	Dependencies     map[string]string `json:"dependencies,omitempty"`
+	DevDependencies  map[string]string `json:"devDependencies,omitempty"`
+	PeerDependencies map[string]string `json:"peerDependencies,omitempty"`
+	Engines          map[string]string `json:"engines,omitempty"`
+	Versions         []string          `json:"versions"`
+	TotalVersions    int               `json:"totalVersions"`
 }
 
 // PackageHandler is the handler type for get-npm-package
@@ -44,11 +42,9 @@ func NewPackageHandler(client *npm.Client) PackageHandler {
 			return nil, PackageOutput{}, err
 		}
 
-		// Get latest version
 		latestVersion := pkg.DistTags["latest"]
 		latestMeta := pkg.Versions[latestVersion]
 
-		// Extract maintainers
 		maintainers := make([]string, 0, len(pkg.Maintainers))
 		for _, m := range pkg.Maintainers {
 			name := m.Name
@@ -59,54 +55,50 @@ func NewPackageHandler(client *npm.Client) PackageHandler {
 			maintainers = append(maintainers, name)
 		}
 
-		// Get repository URL
 		var repoURL string
 		if pkg.Repository != nil {
 			repoURL = pkg.Repository.URL
 		}
 
-		// Get recent versions (last 10)
-		versions := make([]VersionInfo, 0, len(pkg.Time))
-		for v, t := range pkg.Time {
-			if v == "created" || v == "modified" {
-				continue
-			}
-
-			versions = append(versions, VersionInfo{
-				Version:     v,
-				PublishedAt: t,
-			})
+		// Get all versions sorted by semver descending
+		allVersions := make([]string, 0, len(pkg.Versions))
+		for v := range pkg.Versions {
+			allVersions = append(allVersions, v)
 		}
 
-		// Sort by date descending
-		sort.Slice(versions, func(i, j int) bool {
-			return versions[i].PublishedAt > versions[j].PublishedAt
+		sort.Slice(allVersions, func(i, j int) bool {
+			return compareSemver(allVersions[i], allVersions[j]) > 0
 		})
 
-		// Limit to 10
-		if len(versions) > 10 {
-			versions = versions[:10]
+		// Limit to 50
+		versions := allVersions
+		if len(allVersions) > 50 {
+			versions = allVersions[:50]
 		}
 
 		return nil, PackageOutput{
-			Name:           pkg.Name,
-			Version:        latestVersion,
-			Description:    pkg.Description,
-			License:        pkg.License,
-			Homepage:       pkg.Homepage,
-			Repository:     repoURL,
-			Maintainers:    maintainers,
-			Keywords:       pkg.Keywords,
-			Dependencies:   latestMeta.Dependencies,
-			RecentVersions: versions,
+			Name:             pkg.Name,
+			Description:      pkg.Description,
+			LatestVersion:    latestVersion,
+			License:          pkg.License,
+			Homepage:         pkg.Homepage,
+			Repository:       repoURL,
+			Maintainers:      maintainers,
+			Keywords:         pkg.Keywords,
+			Dependencies:     latestMeta.Dependencies,
+			DevDependencies:  latestMeta.DevDependencies,
+			PeerDependencies: latestMeta.PeerDeps,
+			Engines:          latestMeta.Engines,
+			Versions:         versions,
+			TotalVersions:    len(allVersions),
 		}, nil
 	}
 }
 
-// PackageTool returns the tool definition for get-npm-package
+// PackageTool returns the tool definition for get-npm-package-details
 func PackageTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "get-npm-package",
-		Description: "Get detailed information about an NPM package",
+		Name:        "get-npm-package-details",
+		Description: "Get detailed information about a specific NPM package",
 	}
 }

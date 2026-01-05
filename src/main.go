@@ -42,6 +42,7 @@ func main() {
 
 	mcp.AddTool(server, tools.SearchTool(), tools.NewSearchHandler(npmClient))
 	mcp.AddTool(server, tools.PackageTool(), tools.NewPackageHandler(npmClient))
+	mcp.AddTool(server, tools.VersionsTool(), tools.NewVersionsHandler(npmClient))
 	mcp.AddTool(server, tools.InstallTool(), tools.NewInstallHandler(npmClient, ghClient, appCache))
 
 	log.Printf("Starting %s v%s", serverName, serverVersion)
