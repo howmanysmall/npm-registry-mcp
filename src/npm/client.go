@@ -134,6 +134,12 @@ func (c *Client) doJSON(ctx context.Context, url string, result any) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
+		// Try to parse error response from NPM API
+		var apiErr APIError
+		if decErr := json.NewDecoder(resp.Body).Decode(&apiErr); decErr == nil && apiErr.Error != "" {
+			return fmt.Errorf("%w: %d: %s", ErrUnexpectedStatus, resp.StatusCode, apiErr.Error)
+		}
+
 		return fmt.Errorf("%w: %d", ErrUnexpectedStatus, resp.StatusCode)
 	}
 
@@ -142,6 +148,12 @@ func (c *Client) doJSON(ctx context.Context, url string, result any) error {
 	}
 
 	return nil
+}
+
+// APIError represents an error response from the NPM API
+type APIError struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
 }
 
 // Sentinel errors
