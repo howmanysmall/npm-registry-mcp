@@ -112,6 +112,7 @@ func NewInstallHandler(npmClient *npm.Client, ghClient *github.Client, _ *cache.
 
 		// Parse last publish time
 		var lastPublish time.Time
+
 		if t, ok := pkg.Time[latestVersion]; ok {
 			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
 				lastPublish = parsed
