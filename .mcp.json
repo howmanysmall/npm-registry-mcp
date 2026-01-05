@@ -20,5 +20,9 @@
 			"command": "bun"
 		}
 	},
-	"removed": {}
+	"removed": {
+		"npm-registry": {
+			"command": "./bin/npm-registry-mcp"
+		}
+	}
 }
