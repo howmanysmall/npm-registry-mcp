@@ -186,6 +186,46 @@ type Repository struct {
 	URL  string `json:"url"`
 }
 
+// UnmarshalJSON implements custom unmarshaling to handle both string and object formats.
+// The NPM registry sometimes returns repository as a string (e.g., "github:user/repo")
+// instead of an object (e.g., {"type": "git", "url": "https://github.com/user/repo"}).
+func (r *Repository) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as object first (the normal case)
+	var repo struct {
+		Type string `json:"type"`
+		URL  string `json:"url"`
+	}
+
+	if err := json.Unmarshal(data, &repo); err == nil {
+		r.Type = repo.Type
+		r.URL = repo.URL
+
+		return nil
+	}
+
+	// If that fails, try to unmarshal as string
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("cannot unmarshal repository: %w", err)
+	}
+
+	// Handle string format
+	if s == "" {
+		return nil
+	}
+
+	// If it starts with "github:", extract the repo path
+	if len(s) > 7 && s[:7] == "github:" {
+		r.Type = "git"
+		r.URL = "https://github.com/" + s[7:]
+	} else {
+		r.Type = "git"
+		r.URL = s
+	}
+
+	return nil
+}
+
 // Dist contains distribution info
 type Dist struct {
 	Tarball      string `json:"tarball"`
