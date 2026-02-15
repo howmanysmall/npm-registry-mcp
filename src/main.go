@@ -4,11 +4,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"github.com/howmanysmall/npm-registry-mcp/src/cache"
+	"github.com/howmanysmall/npm-registry-mcp/src/cmd"
 	"github.com/howmanysmall/npm-registry-mcp/src/github"
 	"github.com/howmanysmall/npm-registry-mcp/src/npm"
 	"github.com/howmanysmall/npm-registry-mcp/src/tools"
@@ -25,6 +27,21 @@ func main() {
 	// Load .env file if it exists (ignore error if not found)
 	_ = godotenv.Load()
 
+	// If no arguments (or only flags), default to running MCP server
+	// We check os.Args directly because Cobra will show help otherwise
+	if len(os.Args) == 1 {
+		RunMCP()
+		return
+	}
+
+	if err := cmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// RunMCP starts the MCP server using stdio transport
+func RunMCP() {
 	npmClient := npm.NewClient()
 	ghClient := github.NewClient()
 	appCache := cache.New(5*time.Minute, 10*time.Minute)
