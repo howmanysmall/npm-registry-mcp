@@ -14,6 +14,9 @@ var ErrInvalidFlexInt = errors.New("cannot unmarshal into FlexInt")
 // ErrInvalidFlexEngines is returned when FlexEngines unmarshaling fails.
 var ErrInvalidFlexEngines = errors.New("cannot unmarshal into FlexEngines")
 
+// ErrInvalidFlexLicense is returned when FlexLicense unmarshaling fails.
+var ErrInvalidFlexLicense = errors.New("cannot unmarshal into FlexLicense")
+
 // FlexInt is an integer that can be unmarshaled from either a JSON number or string.
 // This handles cases where APIs return numbers as strings.
 type FlexInt int
@@ -77,6 +80,36 @@ func (f *FlexEngines) UnmarshalJSON(data []byte) error {
 	return fmt.Errorf("%w: %s", ErrInvalidFlexEngines, data)
 }
 
+// FlexLicense handles the license field which can be either a string
+// or an object (e.g., {"type": "MIT", "url": "..."}).
+type FlexLicense string
+
+// UnmarshalJSON implements custom unmarshaling to handle both string and object formats.
+func (l *FlexLicense) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		*l = ""
+		return nil
+	}
+
+	// Try unmarshaling as string first
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*l = FlexLicense(s)
+		return nil
+	}
+
+	// Try unmarshaling as object (e.g., {"type": "MIT", "url": "..."})
+	var obj struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(data, &obj); err == nil {
+		*l = FlexLicense(obj.Type)
+		return nil
+	}
+
+	return fmt.Errorf("%w: %s", ErrInvalidFlexLicense, data)
+}
+
 // SearchResponse is the response from registry.npmjs.org/-/v1/search
 type SearchResponse struct {
 	Objects []SearchObject `json:"objects"`
@@ -99,7 +132,7 @@ type SearchPackage struct {
 	Version     string       `json:"version"`
 	Description string       `json:"description"`
 	Keywords    []string     `json:"keywords"`
-	License     string       `json:"license"`
+	License     FlexLicense  `json:"license"`
 	Publisher   Publisher    `json:"publisher"`
 	Maintainers []Maintainer `json:"maintainers"`
 	Links       Links        `json:"links"`
@@ -158,7 +191,7 @@ type PackageResponse struct {
 	Homepage    string                    `json:"homepage"`
 	Keywords    []string                  `json:"keywords"`
 	Repository  *Repository               `json:"repository"`
-	License     string                    `json:"license"`
+	License     FlexLicense               `json:"license"`
 	Readme      string                    `json:"readme"`
 }
 
@@ -170,7 +203,7 @@ type PackageVersion struct {
 	Main            string            `json:"main"`
 	Types           string            `json:"types,omitempty"`
 	Typings         string            `json:"typings,omitempty"`
-	License         string            `json:"license"`
+	License         FlexLicense       `json:"license"`
 	Homepage        string            `json:"homepage"`
 	Repository      *Repository       `json:"repository"`
 	Dependencies    map[string]string `json:"dependencies"`
