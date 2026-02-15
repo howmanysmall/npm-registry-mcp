@@ -101,7 +101,7 @@ func NewInstallHandler(npmClient *npm.Client, ghClient *github.Client, _ *cache.
 
 		lastPublish := parseLastPublish(pkg, latestVersion)
 		tsSupport, tsStatus := getTypeScriptSupport(latestMeta)
-		licenseRisk := license.AssessRisk(pkg.License)
+		licenseRisk := license.AssessRisk(string(pkg.License))
 
 		healthResult := health.CalculateScore(health.Input{
 			LastPublish:       lastPublish,
@@ -213,7 +213,7 @@ func buildInstallOutput(
 		},
 
 		License: LicenseInfo{
-			SPDX: pkg.License,
+			SPDX: string(pkg.License),
 			Risk: string(licenseRisk.Level),
 		},
 

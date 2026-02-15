@@ -18,7 +18,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6.1.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Build
         run: go build -v ./...
@@ -40,7 +40,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6.1.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Strip $schema from golangci config
         run: jq 'del(."$schema")' .golangci.json > .golangci.json.tmp && mv .golangci.json.tmp .golangci.json
@@ -48,5 +48,5 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.6
+          version: v2.9.0
           args: --timeout=5m

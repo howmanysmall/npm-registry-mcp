@@ -80,7 +80,7 @@ func NewPackageHandler(client *npm.Client) PackageHandler {
 			Name:             pkg.Name,
 			Description:      pkg.Description,
 			LatestVersion:    latestVersion,
-			License:          pkg.License,
+			License:          string(pkg.License),
 			Homepage:         pkg.Homepage,
 			Repository:       repoURL,
 			Maintainers:      maintainers,

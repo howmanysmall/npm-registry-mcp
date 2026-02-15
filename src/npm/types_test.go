@@ -55,6 +55,75 @@ func TestFlexInt_UnmarshalJSON(t *testing.T) {
 	}
 }
 
+func TestFlexLicense_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		wantErr  bool
+	}{
+		{"unmarshals string", `"MIT"`, "MIT", false},
+		{"unmarshals object", `{"type": "MIT", "url": "http://example.com"}`, "MIT", false},
+		{"unmarshals null", `null`, "", false},
+		{"unmarshals empty string", `""`, "", false},
+		{"errors on invalid type", `123`, "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var l npm.FlexLicense
+
+			err := json.Unmarshal([]byte(tt.input), &l)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+
+				return
+			}
+
+			if string(l) != tt.expected {
+				t.Errorf("got %q, want %q", l, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPackageVersion_UnmarshalJSON_WithObjectLicense(t *testing.T) {
+	t.Parallel()
+
+	jsonData := `{
+		"name": "gray-matter",
+		"version": "1.1.0",
+		"license": {
+			"type": "MIT",
+			"url": "https://github.com/assemble/gray-matter/blob/master/LICENSE-MIT"
+		}
+	}`
+
+	var result npm.PackageVersion
+
+	err := json.Unmarshal([]byte(jsonData), &result)
+	if err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if string(result.License) != "MIT" {
+		t.Errorf("got license %q, want %q", result.License, "MIT")
+	}
+}
+
 func TestSearchObject_UnmarshalJSON_WithStringDependents(t *testing.T) {
 	t.Parallel()
 
