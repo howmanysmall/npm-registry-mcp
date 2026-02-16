@@ -12,46 +12,45 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	versionsLimit int
-)
+func newVersionsCmd(options *cliOptions) *cobra.Command {
+	var versionsLimit int
 
-var versionsCmd = &cobra.Command{
-	Use:   "versions [package]",
-	Short: "List all versions of an NPM package",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(_ *cobra.Command, args []string) error {
-		pkgName := args[0]
-		npmClient := npm.NewClient()
+	versionsCmd := &cobra.Command{
+		Use:   "versions [package]",
+		Short: "List all versions of an NPM package",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			pkgName := args[0]
+			npmClient := npm.NewClient()
 
-		input := tools.VersionsInput{
-			Name:  pkgName,
-			Limit: versionsLimit,
-		}
+			input := tools.VersionsInput{
+				Name:  pkgName,
+				Limit: versionsLimit,
+			}
 
-		handler := tools.NewVersionsHandler(npmClient)
+			handler := tools.NewVersionsHandler(npmClient)
 
-		_, output, err := handler(context.Background(), nil, input)
-		if err != nil {
-			return err
-		}
+			_, output, err := handler(context.Background(), nil, input)
+			if err != nil {
+				return err
+			}
 
-		if GetJSONOutput() {
-			return json.NewEncoder(os.Stdout).Encode(output)
-		}
+			if options.jsonOutput {
+				return json.NewEncoder(os.Stdout).Encode(output)
+			}
 
-		fmt.Printf("Package: %s\n", output.Name)
-		fmt.Printf("Latest Version: %s\n", output.LatestVersion)
-		fmt.Printf("Total Versions: %d\n", output.TotalVersions)
-		fmt.Printf("Versions Shown: %d\n\n", output.VersionsShown)
+			fmt.Printf("Package: %s\n", output.Name)
+			fmt.Printf("Latest Version: %s\n", output.LatestVersion)
+			fmt.Printf("Total Versions: %d\n", output.TotalVersions)
+			fmt.Printf("Versions Shown: %d\n\n", output.VersionsShown)
 
-		fmt.Println(strings.Join(output.Versions, "\n"))
+			fmt.Println(strings.Join(output.Versions, "\n"))
 
-		return nil
-	},
-}
+			return nil
+		},
+	}
 
-func init() {
 	versionsCmd.Flags().IntVarP(&versionsLimit, "limit", "l", 100, "Maximum number of versions (1-1000)")
-	RootCmd.AddCommand(versionsCmd)
+
+	return versionsCmd
 }

@@ -27,14 +27,7 @@ func main() {
 	// Load .env file if it exists (ignore error if not found)
 	_ = godotenv.Load()
 
-	// If no arguments (or only flags), default to running MCP server
-	// We check os.Args directly because Cobra will show help otherwise
-	if len(os.Args) == 1 {
-		RunMCP()
-		return
-	}
-
-	if err := cmd.Execute(); err != nil {
+	if err := cmd.Execute(os.Args[1:], RunMCP); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
