@@ -73,3 +73,4 @@ node_modules
 /bench_dst_*/
 /.unison_home/
 /docs/plans/
+.gocache

@@ -4,7 +4,8 @@ A Model Context Protocol (MCP) server for NPM package analysis with health scori
 
 ## Features
 
-- **3 MCP Tools** for searching, inspecting, and evaluating NPM packages
+- **4 MCP Tools** for searching, inspecting, and evaluating NPM packages
+- **CLI Interface** for direct usage from the terminal
 - **Health Scoring** with weighted factors (maintenance, popularity, security, dependencies)
 - **License Risk Assessment** using SPDX identifiers (Low/Medium/High/Critical)
 - **GitHub Integration** for commit activity and repository health
@@ -61,6 +62,36 @@ Add to your `claude_desktop_config.json`:
     }
   }
 }
+```
+
+## CLI Usage
+
+The binary can be used directly as a CLI tool. If no subcommands are provided, it defaults to starting the MCP server.
+
+### Search for packages
+```bash
+./npm-registry-mcp search react --limit 5
+```
+
+### Get package details
+```bash
+./npm-registry-mcp info lodash
+```
+
+### List package versions
+```bash
+./npm-registry-mcp versions express --limit 20
+```
+
+### Evaluate package health
+```bash
+./npm-registry-mcp health react
+```
+
+### JSON Output
+All commands support the `--json` flag for machine-readable output.
+```bash
+./npm-registry-mcp health react --json
 ```
 
 ## Tools
