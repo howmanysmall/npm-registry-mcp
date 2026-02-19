@@ -95,10 +95,10 @@ func NewPackageHandler(client *npm.Client) PackageHandler {
 	}
 }
 
-// PackageTool returns the tool definition for get-npm-package-details
+// PackageTool returns the tool definition for get-npm-package
 func PackageTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "get-npm-package-details",
+		Name:        "get-npm-package",
 		Description: "Get detailed information about a specific NPM package",
 	}
 }

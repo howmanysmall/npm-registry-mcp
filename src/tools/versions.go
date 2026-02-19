@@ -113,10 +113,10 @@ func parseSemverParts(version string) []int {
 	return result
 }
 
-// VersionsTool returns the tool definition for list-npm-package-versions
+// VersionsTool returns the tool definition for list-package-versions
 func VersionsTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "list-npm-package-versions",
+		Name:        "list-package-versions",
 		Description: "List all versions of a specific NPM package",
 	}
 }

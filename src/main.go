@@ -27,7 +27,16 @@ func main() {
 	// Load .env file if it exists (ignore error if not found)
 	_ = godotenv.Load()
 
-	if err := cmd.Execute(os.Args[1:], RunMCP); err != nil {
+	// Ensure logs go to stderr to avoid corrupting MCP stdio transport
+	log.SetOutput(os.Stderr)
+
+	// If no arguments are provided, default to starting the MCP server
+	if len(os.Args) == 1 {
+		RunMCP()
+		return
+	}
+
+	if err := cmd.Execute(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
