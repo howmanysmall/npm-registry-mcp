@@ -73,10 +73,7 @@ func compareSemver(a, b string) int {
 	aParts := parseSemverParts(a)
 	bParts := parseSemverParts(b)
 
-	maxLen := len(aParts)
-	if len(bParts) > maxLen {
-		maxLen = len(bParts)
-	}
+	maxLen := max(len(bParts), len(aParts))
 
 	for i := range maxLen {
 		var aPart, bPart int

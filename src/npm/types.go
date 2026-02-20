@@ -122,7 +122,7 @@ type SearchObject struct {
 	Package     SearchPackage `json:"package"`
 	Score       Score         `json:"score"`
 	SearchScore float64       `json:"searchScore"`
-	Downloads   Downloads     `json:"downloads,omitempty"`
+	Downloads   Downloads     `json:"downloads"`
 	Dependents  FlexInt       `json:"dependents,omitempty"`
 }
 

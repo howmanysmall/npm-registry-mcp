@@ -308,7 +308,9 @@ func getDownloadTrend(current, previous int) string {
 	change := float64(current-previous) / float64(previous) * 100
 	if change >= 10 {
 		return "growing"
-	} else if change <= -10 {
+	}
+
+	if change <= -10 {
 		return "declining"
 	}
 
@@ -319,12 +321,16 @@ func getPopularityStatus(weeklyDownloads int) string {
 	switch {
 	case weeklyDownloads >= 1000000:
 		return "very popular"
+
 	case weeklyDownloads >= 100000:
 		return "popular"
+
 	case weeklyDownloads >= 10000:
 		return "moderate"
+
 	case weeklyDownloads >= 1000:
 		return "niche"
+
 	default:
 		return "low usage"
 	}
