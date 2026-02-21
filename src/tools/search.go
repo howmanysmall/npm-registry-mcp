@@ -3,7 +3,9 @@ package tools
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/howmanysmall/npm-registry-mcp/src/cache"
 	"github.com/howmanysmall/npm-registry-mcp/src/npm"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -33,7 +35,7 @@ type PackageSummary struct {
 type SearchHandler = func(context.Context, *mcp.CallToolRequest, SearchInput) (*mcp.CallToolResult, SearchOutput, error)
 
 // NewSearchHandler creates a new search handler
-func NewSearchHandler(client *npm.Client) SearchHandler {
+func NewSearchHandler(client *npm.Client, appCache *cache.Cache) SearchHandler {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, input SearchInput) (*mcp.CallToolResult, SearchOutput, error) {
 		// Default limit
 		limit := input.Limit
@@ -43,6 +45,14 @@ func NewSearchHandler(client *npm.Client) SearchHandler {
 
 		if limit > 100 {
 			limit = 100
+		}
+
+		// Check cache
+		cacheKey := fmt.Sprintf("search:%s:%d", input.Query, limit)
+		if appCache != nil {
+			if cached, found := cache.Get[SearchOutput](appCache, cacheKey); found {
+				return nil, cached, nil
+			}
 		}
 
 		result, err := client.Search(ctx, input.Query, limit)
@@ -61,10 +71,17 @@ func NewSearchHandler(client *npm.Client) SearchHandler {
 			})
 		}
 
-		return nil, SearchOutput{
+		output := SearchOutput{
 			Packages: packages,
 			Total:    result.Total,
-		}, nil
+		}
+
+		// Store in cache
+		if appCache != nil {
+			appCache.Set(cacheKey, output)
+		}
+
+		return nil, output, nil
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/howmanysmall/npm-registry-mcp/src/github"
@@ -93,5 +94,56 @@ func TestInstallTool(t *testing.T) {
 
 	if output.Score < 50 {
 		t.Errorf("expected score >= 50 for healthy package, got %d", output.Score)
+	}
+}
+
+func TestSecurityTool(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "advisories/bulk") {
+			_, _ = w.Write([]byte(`{
+				"lodash": [
+					{
+						"id": 123,
+						"title": "Prototype Pollution",
+						"severity": "high"
+					}
+				]
+			}`))
+
+			return
+		}
+
+		// Fallback for abbreviated package if needed
+		_, _ = w.Write([]byte(`{"name": "lodash", "dist-tags": {"latest": "4.17.21"}}`))
+	}))
+	defer server.Close()
+
+	npmClient := npm.NewClient(npm.WithBaseURL(server.URL))
+	handler := tools.NewSecurityHandler(npmClient, nil)
+
+	req := &mcp.CallToolRequest{}
+	input := tools.SecurityInput{
+		Package: testPackageName,
+	}
+
+	_, output, err := handler(context.Background(), req, input)
+	if err != nil {
+		t.Fatalf("handler failed: %v", err)
+	}
+
+	if output.Package != testPackageName {
+		t.Errorf("expected %s, got %s", testPackageName, output.Package)
+	}
+
+	if len(output.Vulnerabilities) != 1 {
+		t.Errorf("expected 1 vulnerability, got %d", len(output.Vulnerabilities))
+	}
+
+	if output.Vulnerabilities[0].Title != "Prototype Pollution" {
+		t.Errorf("expected Prototype Pollution, got %s", output.Vulnerabilities[0].Title)
 	}
 }

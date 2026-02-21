@@ -28,7 +28,7 @@ func newVersionsCmd(options *cliOptions) *cobra.Command {
 				Limit: versionsLimit,
 			}
 
-			handler := tools.NewVersionsHandler(npmClient)
+			handler := tools.NewVersionsHandler(npmClient, nil)
 
 			_, output, err := handler(context.Background(), nil, input)
 			if err != nil {

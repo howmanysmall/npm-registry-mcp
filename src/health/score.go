@@ -65,44 +65,26 @@ func determineVerdict(
 	return VerdictYes
 }
 
-func computeFactors(input Input) (
-	factors []Factor,
-	warnings []string,
-	totalScore int,
-	totalWeight int,
-) {
-	var (
-		s int
-		f Factor
-	)
+func computeMaintenanceFactors(input Input) ([]Factor, []string, int, int) {
+	factors := make([]Factor, 0, 3)
 
-	s, f = scoreLastPublish(input.LastPublish)
+	var warnings []string
+
+	var totalScore, totalWeight int
+
+	s, f := scoreLastPublish(input.LastPublish)
 	factors = append(factors, f)
-	totalScore += s * 25
-	totalWeight += 25
+	totalScore += s * 20
+	totalWeight += 20
 
 	if s < 50 {
 		warnings = append(warnings, fmt.Sprintf("Last published %s", f.Value))
 	}
 
-	s, f = scoreDownloadTrend(input.WeeklyDownloads, input.PrevWeekDownloads)
-	factors = append(factors, f)
-	totalScore += s * 20
-	totalWeight += 20
-
-	s, f = scoreOutdatedDeps(input.DirectDeps, input.OutdatedDeps)
-	factors = append(factors, f)
-	totalScore += s * 20
-	totalWeight += 20
-
-	if s < 50 {
-		warnings = append(warnings, fmt.Sprintf("%d outdated dependencies", input.OutdatedDeps))
-	}
-
 	s, f = scoreCommitActivity(input.CommitCount90d)
 	factors = append(factors, f)
-	totalScore += s * 15
-	totalWeight += 15
+	totalScore += s * 10
+	totalWeight += 10
 
 	s, f = scoreMaintainers(input.MaintainerCount)
 	factors = append(factors, f)
@@ -113,14 +95,89 @@ func computeFactors(input Input) (
 		warnings = append(warnings, "Bus factor: 1")
 	}
 
+	return factors, warnings, totalScore, totalWeight
+}
+
+func computeEcosystemFactors(input Input) ([]Factor, []string, int, int) {
+	factors := make([]Factor, 0, 2)
+
+	var warnings []string
+
+	var totalScore, totalWeight int
+
+	s, f := scoreDownloadTrend(input.WeeklyDownloads, input.PrevWeekDownloads)
+	factors = append(factors, f)
+	totalScore += s * 15
+	totalWeight += 15
+
+	s, f = scoreTypeScript(input.HasTypes)
+	factors = append(factors, f)
+	totalScore += s * 5
+	totalWeight += 5
+
+	if !input.HasTypes {
+		warnings = append(warnings, "No TypeScript definitions found")
+	}
+
+	return factors, warnings, totalScore, totalWeight
+}
+
+func computeQualityFactors(input Input) ([]Factor, []string, int, int) {
+	factors := make([]Factor, 0, 3)
+
+	var warnings []string
+
+	var totalScore, totalWeight int
+
+	s, f := scoreOutdatedDeps(input.DirectDeps, input.OutdatedDeps)
+	factors = append(factors, f)
+	totalScore += s * 15
+	totalWeight += 15
+
+	if s < 50 {
+		warnings = append(warnings, fmt.Sprintf("%d outdated dependencies", input.OutdatedDeps))
+	}
+
 	s, f = scoreVulnerabilities(input.VulnCount)
 	factors = append(factors, f)
-	totalScore += s * 10
-	totalWeight += 10
+	totalScore += s * 20
+	totalWeight += 20
 
 	if input.VulnCount > 0 {
 		warnings = append(warnings, fmt.Sprintf("%d known vulnerabilities", input.VulnCount))
 	}
+
+	s, f = scorePackageSize(input.UnpackedSize)
+	factors = append(factors, f)
+	totalScore += s * 5
+	totalWeight += 5
+
+	return factors, warnings, totalScore, totalWeight
+}
+
+func computeFactors(input Input) (
+	factors []Factor,
+	warnings []string,
+	totalScore int,
+	totalWeight int,
+) {
+	f1, w1, s1, t1 := computeMaintenanceFactors(input)
+	factors = append(factors, f1...)
+	warnings = append(warnings, w1...)
+	totalScore += s1
+	totalWeight += t1
+
+	f2, w2, s2, t2 := computeEcosystemFactors(input)
+	factors = append(factors, f2...)
+	warnings = append(warnings, w2...)
+	totalScore += s2
+	totalWeight += t2
+
+	f3, w3, s3, t3 := computeQualityFactors(input)
+	factors = append(factors, f3...)
+	warnings = append(warnings, w3...)
+	totalScore += s3
+	totalWeight += t3
 
 	return factors, warnings, totalScore, totalWeight
 }
@@ -147,9 +204,10 @@ func CalculateScore(input Input) Result {
 func scoreLastPublish(t time.Time) (int, Factor) {
 	days := int(time.Since(t).Hours() / 24)
 
-	var score int
-
-	var status string
+	var (
+		score  int
+		status string
+	)
 
 	switch {
 	case days <= 30:
@@ -194,9 +252,10 @@ func scoreDownloadTrend(current, previous int) (int, Factor) {
 
 	change := float64(current-previous) / float64(previous) * 100
 
-	var score int
-
-	var status string
+	var (
+		score  int
+		status string
+	)
 
 	switch {
 	case change >= 10:
@@ -236,9 +295,10 @@ func scoreOutdatedDeps(total, outdated int) (int, Factor) {
 
 	pct := float64(outdated) / float64(total) * 100
 
-	var score int
-
-	var status string
+	var (
+		score  int
+		status string
+	)
 
 	switch {
 	case pct == 0:
@@ -267,9 +327,10 @@ func scoreOutdatedDeps(total, outdated int) (int, Factor) {
 }
 
 func scoreCommitActivity(count int) (int, Factor) {
-	var score int
-
-	var status string
+	var (
+		score  int
+		status string
+	)
 
 	switch {
 	case count >= 20:
@@ -298,23 +359,24 @@ func scoreCommitActivity(count int) (int, Factor) {
 }
 
 func scoreMaintainers(count int) (int, Factor) {
-	var score int
+	var (
+		score  int
+		status string
+	)
 
-	var status string
-
-	switch {
-	case count >= 3:
-		score = 100
-		status = "healthy team"
-	case count == 2:
-		score = 70
-		status = "small team"
-	case count == 1:
-		score = 40
-		status = "single maintainer"
-	default:
+	switch count {
+	case 0:
 		score = 0
 		status = "no maintainers"
+	case 1:
+		score = 40
+		status = "single maintainer"
+	case 2:
+		score = 70
+		status = "small team"
+	default:
+		score = 100
+		status = "healthy team"
 	}
 
 	return score, Factor{
@@ -326,17 +388,18 @@ func scoreMaintainers(count int) (int, Factor) {
 }
 
 func scoreVulnerabilities(count int) (int, Factor) {
-	var score int
+	var (
+		score  int
+		status string
+	)
 
-	var status string
-
-	switch {
-	case count == 0:
+	switch count {
+	case 0:
 		score = 100
 		status = "none known"
-	case count <= 2:
-		score = 40
-		status = "some issues"
+	case 1:
+		score = 20
+		status = "vulnerable"
 	default:
 		score = 0
 		status = "critical"
@@ -345,6 +408,68 @@ func scoreVulnerabilities(count int) (int, Factor) {
 	return score, Factor{
 		Name:   "Vulnerabilities",
 		Value:  fmt.Sprintf("%d", count),
+		Score:  score,
+		Status: status,
+	}
+}
+
+func scoreTypeScript(hasTypes bool) (int, Factor) {
+	if hasTypes {
+		return 100, Factor{
+			Name:   "TypeScript",
+			Value:  "included",
+			Score:  100,
+			Status: "bundled or @types available",
+		}
+	}
+
+	return 0, Factor{
+		Name:   "TypeScript",
+		Value:  "none",
+		Score:  0,
+		Status: "no types found",
+	}
+}
+
+func scorePackageSize(size int64) (int, Factor) {
+	if size <= 0 {
+		return 50, Factor{
+			Name:   "Package Size",
+			Value:  "unknown",
+			Score:  50,
+			Status: "unknown",
+		}
+	}
+
+	// Unpacked size in MB
+	mb := float64(size) / (1024 * 1024)
+
+	var (
+		score  int
+		status string
+	)
+
+	switch {
+	case mb <= 1:
+		score = 100
+		status = "very light"
+	case mb <= 5:
+		score = 80
+		status = "light"
+	case mb <= 20:
+		score = 60
+		status = "moderate"
+	case mb <= 50:
+		score = 40
+		status = "heavy"
+	default:
+		score = 20
+		status = "very heavy"
+	}
+
+	return score, Factor{
+		Name:   "Package Size",
+		Value:  fmt.Sprintf("%.1f MB", mb),
 		Score:  score,
 		Status: status,
 	}

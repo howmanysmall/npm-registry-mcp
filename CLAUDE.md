@@ -29,6 +29,7 @@ This is an MCP (Model Context Protocol) server that exposes NPM registry analysi
 
 - **search-npm-packages** - Search NPM registry with text query
 - **get-npm-package** - Get detailed package metadata
+- **list-package-versions** - List all versions of a specific NPM package
 - **should-i-install** - Comprehensive health assessment with verdict (yes/caution/no)
 
 ### Package Structure

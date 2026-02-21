@@ -27,7 +27,16 @@ func main() {
 	// Load .env file if it exists (ignore error if not found)
 	_ = godotenv.Load()
 
-	if err := cmd.Execute(os.Args[1:], RunMCP); err != nil {
+	// Ensure logs go to stderr to avoid corrupting MCP stdio transport
+	log.SetOutput(os.Stderr)
+
+	// If no arguments are provided, default to starting the MCP server
+	if len(os.Args) == 1 {
+		RunMCP()
+		return
+	}
+
+	if err := cmd.Execute(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -50,10 +59,13 @@ func RunMCP() {
 		Version: serverVersion,
 	}, nil)
 
-	mcp.AddTool(server, tools.SearchTool(), tools.NewSearchHandler(npmClient))
-	mcp.AddTool(server, tools.PackageTool(), tools.NewPackageHandler(npmClient))
-	mcp.AddTool(server, tools.VersionsTool(), tools.NewVersionsHandler(npmClient))
+	mcp.AddTool(server, tools.SearchTool(), tools.NewSearchHandler(npmClient, appCache))
+	mcp.AddTool(server, tools.PackageTool(), tools.NewPackageHandler(npmClient, appCache))
+	mcp.AddTool(server, tools.ReadmeTool(), tools.NewReadmeHandler(npmClient, appCache))
+	mcp.AddTool(server, tools.VersionsTool(), tools.NewVersionsHandler(npmClient, appCache))
+	mcp.AddTool(server, tools.TagsTool(), tools.NewTagsHandler(npmClient, appCache))
 	mcp.AddTool(server, tools.InstallTool(), tools.NewInstallHandler(npmClient, ghClient, appCache))
+	mcp.AddTool(server, tools.SecurityTool(), tools.NewSecurityHandler(npmClient, appCache))
 
 	log.Printf("Starting %s v%s", serverName, serverVersion)
 

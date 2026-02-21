@@ -33,7 +33,7 @@ func TestSearchTool(t *testing.T) {
 	defer server.Close()
 
 	npmClient := npm.NewClient(npm.WithBaseURL(server.URL))
-	handler := tools.NewSearchHandler(npmClient)
+	handler := tools.NewSearchHandler(npmClient, nil)
 
 	req := &mcp.CallToolRequest{}
 	input := tools.SearchInput{

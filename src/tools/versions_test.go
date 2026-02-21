@@ -11,6 +11,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const latestVersion = "4.17.21"
+
 func getVersionServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -36,7 +38,7 @@ func TestVersionsTool(t *testing.T) {
 	defer server.Close()
 
 	npmClient := npm.NewClient(npm.WithBaseURL(server.URL))
-	handler := tools.NewVersionsHandler(npmClient)
+	handler := tools.NewVersionsHandler(npmClient, nil)
 
 	req := &mcp.CallToolRequest{}
 	input := tools.VersionsInput{
@@ -57,8 +59,8 @@ func TestVersionsTool(t *testing.T) {
 		t.Errorf("expected name %s, got %s", testPackageName, output.Name)
 	}
 
-	if output.LatestVersion != "4.17.21" {
-		t.Errorf("expected latest 4.17.21, got %s", output.LatestVersion)
+	if output.LatestVersion != latestVersion {
+		t.Errorf("expected latest %s, got %s", latestVersion, output.LatestVersion)
 	}
 
 	if output.TotalVersions != 5 {
@@ -74,8 +76,8 @@ func TestVersionsTool(t *testing.T) {
 		t.Fatal("expected at least 2 versions")
 	}
 
-	if output.Versions[0] != "4.17.21" {
-		t.Errorf("expected first version 4.17.21, got %s", output.Versions[0])
+	if output.Versions[0] != latestVersion {
+		t.Errorf("expected first version %s, got %s", latestVersion, output.Versions[0])
 	}
 
 	if output.Versions[len(output.Versions)-1] != "3.10.1" {
@@ -104,7 +106,7 @@ func TestVersionsTool_Limit(t *testing.T) {
 	defer server.Close()
 
 	npmClient := npm.NewClient(npm.WithBaseURL(server.URL))
-	handler := tools.NewVersionsHandler(npmClient)
+	handler := tools.NewVersionsHandler(npmClient, nil)
 
 	req := &mcp.CallToolRequest{}
 	input := tools.VersionsInput{
@@ -127,5 +129,39 @@ func TestVersionsTool_Limit(t *testing.T) {
 
 	if len(output.Versions) != 2 {
 		t.Errorf("expected 2 versions in list, got %d", len(output.Versions))
+	}
+}
+
+func TestTagsTool(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name": "lodash",
+			"dist-tags": {"latest": "4.17.21", "next": "5.0.0"}
+		}`))
+	}))
+	defer server.Close()
+
+	npmClient := npm.NewClient(npm.WithBaseURL(server.URL))
+	handler := tools.NewTagsHandler(npmClient, nil)
+
+	req := &mcp.CallToolRequest{}
+	input := tools.TagsInput{
+		Name: testPackageName,
+	}
+
+	_, output, err := handler(context.Background(), req, input)
+	if err != nil {
+		t.Fatalf("handler failed: %v", err)
+	}
+
+	if output.Name != testPackageName {
+		t.Errorf("expected %s, got %s", testPackageName, output.Name)
+	}
+
+	if output.Tags["latest"] != latestVersion || output.Tags["next"] != "5.0.0" {
+		t.Errorf("expected tags, got %v", output.Tags)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/howmanysmall/npm-registry-mcp/src/cache"
@@ -15,7 +16,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const statusUnknown = "unknown"
+const (
+	statusUnknown   = "unknown"
+	supportIncluded = "included"
+)
 
 // InstallInput is the input for the should-i-install tool
 type InstallInput struct {
@@ -85,53 +89,161 @@ type LicenseInfo struct {
 // InstallHandler is the handler type for should-i-install
 type InstallHandler = func(context.Context, *mcp.CallToolRequest, InstallInput) (*mcp.CallToolResult, InstallOutput, error)
 
+type installData struct {
+	pkg               *npm.PackageResponse
+	weeklyDownloads   int
+	prevWeekDownloads int
+	commitCount       int
+	openIssues        int
+	vulnCount         int
+	tsSupport         string
+	tsStatus          string
+}
+
 // NewInstallHandler creates a new install handler
-func NewInstallHandler(npmClient *npm.Client, ghClient *github.Client, _ *cache.Cache) InstallHandler {
+func NewInstallHandler(npmClient *npm.Client, ghClient *github.Client, appCache *cache.Cache) InstallHandler {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, input InstallInput) (*mcp.CallToolResult, InstallOutput, error) {
-		pkg, err := npmClient.GetPackage(ctx, input.Package)
-		if err != nil {
-			return nil, InstallOutput{}, fmt.Errorf("failed to get package: %w", err)
+		// Check cache
+		cacheKey := fmt.Sprintf("install:%s", input.Package)
+		if appCache != nil {
+			if cached, found := cache.Get[InstallOutput](appCache, cacheKey); found {
+				return nil, cached, nil
+			}
 		}
 
-		latestVersion := pkg.DistTags["latest"]
-		latestMeta := pkg.Versions[latestVersion]
+		data, err := fetchInstallData(ctx, npmClient, ghClient, input.Package)
+		if err != nil {
+			return nil, InstallOutput{}, err
+		}
 
-		weeklyDownloads, prevWeekDownloads := getDownloadStats(ctx, npmClient, input.Package)
-		commitCount, openIssues := getGitHubStats(ctx, ghClient, pkg.Repository)
+		latestVersion := data.pkg.DistTags["latest"]
+		latestMeta := data.pkg.Versions[latestVersion]
 
-		lastPublish := parseLastPublish(pkg, latestVersion)
-		tsSupport, tsStatus := getTypeScriptSupport(latestMeta)
-		licenseRisk := license.AssessRisk(string(pkg.License))
+		lastPublish := parseLastPublish(data.pkg, latestVersion)
+		licenseRisk := license.AssessRisk(string(data.pkg.License))
 
 		healthResult := health.CalculateScore(health.Input{
 			LastPublish:       lastPublish,
-			WeeklyDownloads:   weeklyDownloads,
-			PrevWeekDownloads: prevWeekDownloads,
+			WeeklyDownloads:   data.weeklyDownloads,
+			PrevWeekDownloads: data.prevWeekDownloads,
 			DirectDeps:        len(latestMeta.Dependencies),
 			OutdatedDeps:      0,
-			CommitCount90d:    commitCount,
-			OpenIssues:        openIssues,
-			MaintainerCount:   len(pkg.Maintainers),
-			VulnCount:         0,
+			CommitCount90d:    data.commitCount,
+			OpenIssues:        data.openIssues,
+			MaintainerCount:   len(data.pkg.Maintainers),
+			VulnCount:         data.vulnCount,
+			HasTypes:          data.tsSupport == supportIncluded,
+			UnpackedSize:      latestMeta.Dist.UnpackedSize,
 		})
 
-		output := buildInstallOutput(pkg, latestMeta, healthResult, lastPublish, weeklyDownloads, prevWeekDownloads, tsSupport, tsStatus, licenseRisk)
+		output := buildInstallOutput(data.pkg, latestMeta, healthResult, lastPublish, data.weeklyDownloads, data.prevWeekDownloads, data.tsSupport, data.tsStatus, licenseRisk)
+		output.Security.Vulnerabilities = data.vulnCount
+
+		if data.vulnCount > 0 {
+			output.Security.Status = "vulnerable"
+		} else {
+			output.Security.Status = "secure"
+		}
+
+		// Store in cache
+		if appCache != nil {
+			appCache.Set(cacheKey, output)
+		}
 
 		return nil, output, nil
 	}
 }
 
+func fetchInstallData(ctx context.Context, npmClient *npm.Client, ghClient *github.Client, pkgName string) (*installData, error) {
+	data := &installData{}
+
+	var pkgErr error
+
+	var wg sync.WaitGroup
+
+	// Fetch package metadata and download stats in parallel
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		data.pkg, pkgErr = npmClient.GetPackage(ctx, pkgName)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		data.weeklyDownloads, data.prevWeekDownloads = getDownloadStats(ctx, npmClient, pkgName)
+	}()
+
+	wg.Wait()
+
+	if pkgErr != nil {
+		return nil, fmt.Errorf("failed to get package: %w", pkgErr)
+	}
+
+	latestVersion := data.pkg.DistTags["latest"]
+	latestMeta := data.pkg.Versions[latestVersion]
+
+	// Fetch GitHub stats, vulnerabilities, and types (depend on pkg)
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+
+		data.commitCount, data.openIssues = getGitHubStats(ctx, ghClient, data.pkg.Repository)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		advisories, err := npmClient.GetAdvisories(ctx, map[string][]string{
+			pkgName: {latestVersion},
+		})
+		if err == nil {
+			if pkgAdvisories, ok := advisories[pkgName]; ok {
+				data.vulnCount = len(pkgAdvisories)
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		data.tsSupport, data.tsStatus = getTypeScriptSupport(ctx, npmClient, pkgName, latestMeta)
+	}()
+
+	wg.Wait()
+
+	return data, nil
+}
+
 func getDownloadStats(ctx context.Context, client *npm.Client, pkgName string) (int, int) {
-	weeklyDownloads := 0
-	prevWeekDownloads := 0
+	var (
+		weeklyDownloads   int
+		prevWeekDownloads int
+		wg                sync.WaitGroup
+	)
 
-	if dl, err := client.GetDownloads(ctx, pkgName, "last-week"); err == nil {
-		weeklyDownloads = dl.Downloads
-	}
+	wg.Add(2)
 
-	if dl, err := client.GetDownloads(ctx, pkgName, "last-month"); err == nil {
-		prevWeekDownloads = dl.Downloads / 4
-	}
+	go func() {
+		defer wg.Done()
+
+		if dl, err := client.GetDownloads(ctx, pkgName, "last-week"); err == nil {
+			weeklyDownloads = dl.Downloads
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if dl, err := client.GetDownloads(ctx, pkgName, "last-month"); err == nil {
+			prevWeekDownloads = dl.Downloads / 4
+		}
+	}()
+
+	wg.Wait()
 
 	return weeklyDownloads, prevWeekDownloads
 }
@@ -146,16 +258,31 @@ func getGitHubStats(ctx context.Context, client *github.Client, repo *npm.Reposi
 		return 0, 0
 	}
 
-	openIssues := 0
-	commitCount := 0
+	var (
+		openIssues  int
+		commitCount int
+		wg          sync.WaitGroup
+	)
 
-	if repoInfo, err := client.GetRepository(ctx, owner, repoName); err == nil {
-		openIssues = repoInfo.OpenIssuesCount
-	}
+	wg.Add(2)
 
-	if commits, err := client.GetCommits(ctx, owner, repoName, 90); err == nil {
-		commitCount = len(commits)
-	}
+	go func() {
+		defer wg.Done()
+
+		if repoInfo, err := client.GetRepository(ctx, owner, repoName); err == nil {
+			openIssues = repoInfo.OpenIssuesCount
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if commits, err := client.GetCommits(ctx, owner, repoName, 90); err == nil {
+			commitCount = len(commits)
+		}
+	}()
+
+	wg.Wait()
 
 	return commitCount, openIssues
 }
@@ -235,6 +362,85 @@ func InstallTool() *mcp.Tool {
 	}
 }
 
+// SecurityInput is the input for the check-package-security tool
+type SecurityInput struct {
+	Package string `json:"package" jsonschema:"NPM package name"`
+	Version string `json:"version,omitempty" jsonschema:"specific version (defaults to latest)"`
+}
+
+// SecurityOutput is the output for the check-package-security tool
+type SecurityOutput struct {
+	Package         string         `json:"package"`
+	Version         string         `json:"version"`
+	Vulnerabilities []npm.Advisory `json:"vulnerabilities"`
+	Summary         string         `json:"summary"`
+}
+
+// SecurityHandler is the handler type for check-package-security
+type SecurityHandler = func(context.Context, *mcp.CallToolRequest, SecurityInput) (*mcp.CallToolResult, SecurityOutput, error)
+
+// NewSecurityHandler creates a new security handler
+func NewSecurityHandler(client *npm.Client, appCache *cache.Cache) SecurityHandler {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, input SecurityInput) (*mcp.CallToolResult, SecurityOutput, error) {
+		version := input.Version
+		if version == "" {
+			pkg, err := client.GetAbbreviatedPackage(ctx, input.Package)
+			if err != nil {
+				return nil, SecurityOutput{}, err
+			}
+
+			version = pkg.DistTags["latest"]
+		}
+
+		// Check cache
+		cacheKey := fmt.Sprintf("security:%s:%s", input.Package, version)
+		if appCache != nil {
+			if cached, found := cache.Get[SecurityOutput](appCache, cacheKey); found {
+				return nil, cached, nil
+			}
+		}
+
+		advisories, err := client.GetAdvisories(ctx, map[string][]string{
+			input.Package: {version},
+		})
+		if err != nil {
+			return nil, SecurityOutput{}, err
+		}
+
+		pkgAdvisories := advisories[input.Package]
+		if pkgAdvisories == nil {
+			pkgAdvisories = []npm.Advisory{}
+		}
+
+		summary := "No known vulnerabilities found."
+		if len(pkgAdvisories) > 0 {
+			summary = fmt.Sprintf("Found %d known vulnerabilities.", len(pkgAdvisories))
+		}
+
+		output := SecurityOutput{
+			Package:         input.Package,
+			Version:         version,
+			Vulnerabilities: pkgAdvisories,
+			Summary:         summary,
+		}
+
+		// Store in cache
+		if appCache != nil {
+			appCache.Set(cacheKey, output)
+		}
+
+		return nil, output, nil
+	}
+}
+
+// SecurityTool returns the tool definition for check-package-security
+func SecurityTool() *mcp.Tool {
+	return &mcp.Tool{
+		Name:        "check-package-security",
+		Description: "Deep security audit for an NPM package, listing all known vulnerabilities",
+	}
+}
+
 var githubURLRegex = regexp.MustCompile(`github\.com[/:]([^/]+)/([^/.]+)`)
 
 func parseGitHubURL(url string) (owner, repo string) {
@@ -292,12 +498,23 @@ func formatTimeAgo(t time.Time) string {
 	}
 }
 
-func getTypeScriptSupport(meta npm.PackageVersion) (support, status string) {
+func getTypeScriptSupport(ctx context.Context, client *npm.Client, pkgName string, meta npm.PackageVersion) (support, status string) {
 	if meta.Types != "" || meta.Typings != "" {
-		return "included", "bundled"
+		return supportIncluded, "bundled"
 	}
-	// Could check for @types package, but skip for now
-	return statusUnknown, "check @types"
+
+	// Check for @types package
+	// Scoped packages like @foo/bar are under @types/foo__bar
+	typesPkg := "@types/" + pkgName
+	if strings.HasPrefix(pkgName, "@") {
+		typesPkg = "@types/" + strings.ReplaceAll(pkgName[1:], "/", "__")
+	}
+
+	if _, err := client.GetAbbreviatedPackage(ctx, typesPkg); err == nil {
+		return supportIncluded, "@types available"
+	}
+
+	return statusUnknown, "none"
 }
 
 func getDownloadTrend(current, previous int) string {
@@ -308,7 +525,9 @@ func getDownloadTrend(current, previous int) string {
 	change := float64(current-previous) / float64(previous) * 100
 	if change >= 10 {
 		return "growing"
-	} else if change <= -10 {
+	}
+
+	if change <= -10 {
 		return "declining"
 	}
 
@@ -319,12 +538,16 @@ func getPopularityStatus(weeklyDownloads int) string {
 	switch {
 	case weeklyDownloads >= 1000000:
 		return "very popular"
+
 	case weeklyDownloads >= 100000:
 		return "popular"
+
 	case weeklyDownloads >= 10000:
 		return "moderate"
+
 	case weeklyDownloads >= 1000:
 		return "niche"
+
 	default:
 		return "low usage"
 	}
