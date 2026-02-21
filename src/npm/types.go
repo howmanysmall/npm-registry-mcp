@@ -290,6 +290,64 @@ type DailyDownload struct {
 	Day       string `json:"day"`
 }
 
+// AbbreviatedPackageResponse is the response from registry.npmjs.org/{package}
+// with Accept: application/vnd.npm.install-v1+json
+type AbbreviatedPackageResponse struct {
+	Name     string                               `json:"name"`
+	DistTags map[string]string                    `json:"dist-tags"`
+	Versions map[string]AbbreviatedPackageVersion `json:"versions"`
+	Modified string                               `json:"modified"`
+}
+
+// AbbreviatedPackageVersion is a smaller version of PackageVersion
+type AbbreviatedPackageVersion struct {
+	Name                 string            `json:"name"`
+	Version              string            `json:"version"`
+	Dependencies         map[string]string `json:"dependencies,omitempty"`
+	DevDependencies      map[string]string `json:"devDependencies,omitempty"`
+	OptionalDependencies map[string]string `json:"optionalDependencies,omitempty"`
+	PeerDependencies     map[string]string `json:"peerDependencies,omitempty"`
+	Engines              FlexEngines       `json:"engines,omitempty"`
+	Dist                 Dist              `json:"dist"`
+	Bin                  map[string]string `json:"bin,omitempty"`
+}
+
+// Advisory represents a security advisory from the NPM registry
+type Advisory struct {
+	ID                 int      `json:"id"`
+	URL                string   `json:"url"`
+	Title              string   `json:"title"`
+	Severity           string   `json:"severity"`
+	VulnerableVersions string   `json:"vulnerable_versions"`
+	PatchedVersions    string   `json:"patched_versions"`
+	Recommendation     string   `json:"recommendation"`
+	CWEs               []string `json:"cwes"`
+	CVSSVector         string   `json:"cvss_vector"`
+	CVSSScore          float64  `json:"cvss_score"`
+	ModuleName         string   `json:"module_name"`
+	Cves               []string `json:"cves"`
+	Access             string   `json:"access"`
+	Created            string   `json:"created"`
+	Updated            string   `json:"updated"`
+	Findings           []any    `json:"findings"`
+	References         string   `json:"references"`
+	NpmAdvisoryID      any      `json:"npm_advisory_id"`
+	GithubAdvisoryID   string   `json:"github_advisory_id"`
+	CveID              string   `json:"cve_id"`
+	Vendor             string   `json:"vendor"`
+	Product            string   `json:"product"`
+	Description        string   `json:"description"`
+	Source             any      `json:"source"`
+	Slug               string   `json:"slug"`
+	Version            string   `json:"version"`
+	FoundBy            any      `json:"found_by"`
+	ReportedBy         any      `json:"reported_by"`
+	Cwe                string   `json:"cwe"`
+	Metadata           any      `json:"metadata"`
+	AffectedVersions   string   `json:"affected_versions"`
+	Recommendations    string   `json:"recommendations"`
+}
+
 // ParsedTime parses an NPM time string
 func ParsedTime(s string) (time.Time, error) {
 	return time.Parse(time.RFC3339, s)

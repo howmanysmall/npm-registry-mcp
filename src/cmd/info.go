@@ -25,7 +25,7 @@ func newInfoCmd(options *cliOptions) *cobra.Command {
 				Name: pkgName,
 			}
 
-			handler := tools.NewPackageHandler(npmClient)
+			handler := tools.NewPackageHandler(npmClient, nil)
 
 			_, output, err := handler(context.Background(), nil, input)
 			if err != nil {

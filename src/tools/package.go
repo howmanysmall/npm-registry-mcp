@@ -2,8 +2,10 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
+	"github.com/howmanysmall/npm-registry-mcp/src/cache"
 	"github.com/howmanysmall/npm-registry-mcp/src/npm"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -35,8 +37,16 @@ type PackageOutput struct {
 type PackageHandler = func(context.Context, *mcp.CallToolRequest, PackageInput) (*mcp.CallToolResult, PackageOutput, error)
 
 // NewPackageHandler creates a new package handler
-func NewPackageHandler(client *npm.Client) PackageHandler {
+func NewPackageHandler(client *npm.Client, appCache *cache.Cache) PackageHandler {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, input PackageInput) (*mcp.CallToolResult, PackageOutput, error) {
+		// Check cache
+		cacheKey := fmt.Sprintf("package:%s", input.Name)
+		if appCache != nil {
+			if cached, found := cache.Get[PackageOutput](appCache, cacheKey); found {
+				return nil, cached, nil
+			}
+		}
+
 		pkg, err := client.GetPackage(ctx, input.Name)
 		if err != nil {
 			return nil, PackageOutput{}, err
@@ -45,38 +55,16 @@ func NewPackageHandler(client *npm.Client) PackageHandler {
 		latestVersion := pkg.DistTags["latest"]
 		latestMeta := pkg.Versions[latestVersion]
 
-		maintainers := make([]string, 0, len(pkg.Maintainers))
-		for _, m := range pkg.Maintainers {
-			name := m.Name
-			if name == "" {
-				name = m.Username
-			}
-
-			maintainers = append(maintainers, name)
-		}
+		maintainers := getMaintainerNames(pkg.Maintainers)
 
 		var repoURL string
 		if pkg.Repository != nil {
 			repoURL = pkg.Repository.URL
 		}
 
-		// Get all versions sorted by semver descending
-		allVersions := make([]string, 0, len(pkg.Versions))
-		for v := range pkg.Versions {
-			allVersions = append(allVersions, v)
-		}
+		versions, total := getRecentVersions(pkg.Versions)
 
-		sort.Slice(allVersions, func(i, j int) bool {
-			return compareSemver(allVersions[i], allVersions[j]) > 0
-		})
-
-		// Limit to 50
-		versions := allVersions
-		if len(allVersions) > 50 {
-			versions = allVersions[:50]
-		}
-
-		return nil, PackageOutput{
+		output := PackageOutput{
 			Name:             pkg.Name,
 			Description:      pkg.Description,
 			LatestVersion:    latestVersion,
@@ -90,9 +78,50 @@ func NewPackageHandler(client *npm.Client) PackageHandler {
 			PeerDependencies: latestMeta.PeerDeps,
 			Engines:          latestMeta.Engines,
 			Versions:         versions,
-			TotalVersions:    len(allVersions),
-		}, nil
+			TotalVersions:    total,
+		}
+
+		// Store in cache
+		if appCache != nil {
+			appCache.Set(cacheKey, output)
+		}
+
+		return nil, output, nil
 	}
+}
+
+func getMaintainerNames(maintainers []npm.Maintainer) []string {
+	names := make([]string, 0, len(maintainers))
+	for _, m := range maintainers {
+		name := m.Name
+		if name == "" {
+			name = m.Username
+		}
+
+		names = append(names, name)
+	}
+
+	return names
+}
+
+func getRecentVersions(versions map[string]npm.PackageVersion) ([]string, int) {
+	// Get all versions sorted by semver descending
+	allVersions := make([]string, 0, len(versions))
+	for v := range versions {
+		allVersions = append(allVersions, v)
+	}
+
+	sort.Slice(allVersions, func(i, j int) bool {
+		return compareSemver(allVersions[i], allVersions[j]) > 0
+	})
+
+	// Limit to 50
+	recent := allVersions
+	if len(allVersions) > 50 {
+		recent = allVersions[:50]
+	}
+
+	return recent, len(allVersions)
 }
 
 // PackageTool returns the tool definition for get-npm-package
@@ -100,5 +129,57 @@ func PackageTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "get-npm-package",
 		Description: "Get detailed information about a specific NPM package",
+	}
+}
+
+// ReadmeInput is the input for the get-package-readme tool
+type ReadmeInput struct {
+	Name string `json:"name" jsonschema:"NPM package name"`
+}
+
+// ReadmeOutput is the output for the get-package-readme tool
+type ReadmeOutput struct {
+	Name   string `json:"name"`
+	Readme string `json:"readme"`
+}
+
+// ReadmeHandler is the handler type for get-package-readme
+type ReadmeHandler = func(context.Context, *mcp.CallToolRequest, ReadmeInput) (*mcp.CallToolResult, ReadmeOutput, error)
+
+// NewReadmeHandler creates a new readme handler
+func NewReadmeHandler(client *npm.Client, appCache *cache.Cache) ReadmeHandler {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, input ReadmeInput) (*mcp.CallToolResult, ReadmeOutput, error) {
+		// Check cache
+		cacheKey := fmt.Sprintf("readme:%s", input.Name)
+		if appCache != nil {
+			if cached, found := cache.Get[ReadmeOutput](appCache, cacheKey); found {
+				return nil, cached, nil
+			}
+		}
+
+		pkg, err := client.GetPackage(ctx, input.Name)
+		if err != nil {
+			return nil, ReadmeOutput{}, err
+		}
+
+		output := ReadmeOutput{
+			Name:   pkg.Name,
+			Readme: pkg.Readme,
+		}
+
+		// Store in cache
+		if appCache != nil {
+			appCache.Set(cacheKey, output)
+		}
+
+		return nil, output, nil
+	}
+}
+
+// ReadmeTool returns the tool definition for get-package-readme
+func ReadmeTool() *mcp.Tool {
+	return &mcp.Tool{
+		Name:        "get-package-readme",
+		Description: "Get the README of a specific NPM package",
 	}
 }

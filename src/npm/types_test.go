@@ -124,20 +124,85 @@ func TestPackageVersion_UnmarshalJSON_WithObjectLicense(t *testing.T) {
 	}
 }
 
-func TestSearchObject_UnmarshalJSON_WithStringDependents(t *testing.T) {
+func TestFlexEngines_UnmarshalJSON(t *testing.T) {
 	t.Parallel()
 
-	// This tests the real-world scenario from NPM API
-	jsonData := `{"package":{"name":"jsonc-parser","version":"3.3.1","description":"test","keywords":[],"license":"MIT","date":"2024-06-24T21:12:45.445Z","publisher":{"username":"vscode-bot","email":"vscode-bot-npm@microsoft.com"},"maintainers":[],"links":{"npm":"https://www.npmjs.com/package/jsonc-parser","homepage":"https://github.com/microsoft/node-jsonc-parser#readme","repository":"git+https://github.com/microsoft/node-jsonc-parser.git","bugs":"https://github.com/microsoft/node-jsonc-parser/issues"}},"score":{"final":183.08606,"detail":{"quality":1,"popularity":1,"maintenance":1}},"searchScore":183.08606,"downloads":{"weekly":13660649,"monthly":91955409},"dependents":"1131"}`
-
-	var result npm.SearchObject
-
-	err := json.Unmarshal([]byte(jsonData), &result)
-	if err != nil {
-		t.Fatalf("failed to unmarshal: %v", err)
+	tests := []struct {
+		name     string
+		input    string
+		expected map[string]string
+		wantErr  bool
+	}{
+		{"unmarshals map", `{"node": ">=14"}`, map[string]string{"node": ">=14"}, false},
+		{"unmarshals array", `["node >= 0.10.0", "npm >= 1.2.0"]`, map[string]string{"node >= 0.10.0": "*", "npm >= 1.2.0": "*"}, false},
+		{"unmarshals empty map", `{}`, map[string]string{}, false},
+		{"unmarshals empty array", `[]`, map[string]string{}, false},
+		{"errors on invalid type", `123`, nil, true},
 	}
 
-	if int(result.Dependents) != 1131 {
-		t.Errorf("got %d dependents, want 1131", result.Dependents)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var e npm.FlexEngines
+
+			err := json.Unmarshal([]byte(tt.input), &e)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+
+				return
+			}
+
+			if len(e) != len(tt.expected) {
+				t.Errorf("got length %d, want %d", len(e), len(tt.expected))
+			}
+
+			for k, v := range tt.expected {
+				if e[k] != v {
+					t.Errorf("key %q: got %q, want %q", k, e[k], v)
+				}
+			}
+		})
+	}
+}
+
+func TestRepository_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"unmarshals object", `{"type": "git", "url": "https://github.com/foo/bar"}`, "https://github.com/foo/bar"},
+		{"unmarshals string github", `"github:foo/bar"`, "https://github.com/foo/bar"},
+		{"unmarshals string url", `"https://github.com/foo/bar"`, "https://github.com/foo/bar"},
+		{"unmarshals empty string", `""`, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var r npm.Repository
+
+			err := json.Unmarshal([]byte(tt.input), &r)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if r.URL != tt.expected {
+				t.Errorf("got %q, want %q", r.URL, tt.expected)
+			}
+		})
 	}
 }

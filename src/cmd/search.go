@@ -28,7 +28,7 @@ func newSearchCmd(options *cliOptions) *cobra.Command {
 				Limit: searchLimit,
 			}
 
-			handler := tools.NewSearchHandler(npmClient)
+			handler := tools.NewSearchHandler(npmClient, nil)
 
 			_, output, err := handler(context.Background(), nil, input)
 			if err != nil {

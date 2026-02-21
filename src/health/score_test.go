@@ -20,6 +20,8 @@ func TestCalculateScore(t *testing.T) {
 		CommitCount90d:    20,
 		OpenIssues:        10,
 		MaintainerCount:   3,
+		HasTypes:          true,
+		UnpackedSize:      1 * 1024 * 1024, // 1 MB
 	}
 
 	result := health.CalculateScore(input)
@@ -93,11 +95,70 @@ func TestCalculateScore_Caution(t *testing.T) {
 		OutdatedDeps:      2,
 		CommitCount90d:    5,
 		MaintainerCount:   1,
+		HasTypes:          true,
+		UnpackedSize:      500 * 1024, // 0.5 MB
 	}
 
 	result := health.CalculateScore(input)
 
 	if result.Verdict != health.VerdictCaution {
 		t.Errorf("expected verdict 'caution', got %s", result.Verdict)
+	}
+}
+
+func TestCalculateScore_NoTypes(t *testing.T) {
+	t.Parallel()
+
+	input := health.Input{
+		LastPublish:       time.Now().AddDate(0, 0, -7),
+		WeeklyDownloads:   1000000,
+		PrevWeekDownloads: 900000,
+		DirectDeps:        5,
+		OutdatedDeps:      0,
+		CommitCount90d:    20,
+		MaintainerCount:   3,
+		HasTypes:          false, // No types
+		UnpackedSize:      100 * 1024,
+	}
+
+	result := health.CalculateScore(input)
+	found := false
+
+	for _, w := range result.Warnings {
+		if w == "No TypeScript definitions found" {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("expected warning about missing TypeScript definitions")
+	}
+}
+
+func TestCalculateScore_HeavyPackage(t *testing.T) {
+	t.Parallel()
+
+	input := health.Input{
+		LastPublish:       time.Now().AddDate(0, 0, -7),
+		WeeklyDownloads:   1000000,
+		PrevWeekDownloads: 900000,
+		DirectDeps:        5,
+		OutdatedDeps:      0,
+		CommitCount90d:    20,
+		MaintainerCount:   3,
+		HasTypes:          true,
+		UnpackedSize:      100 * 1024 * 1024, // 100 MB
+	}
+
+	result := health.CalculateScore(input)
+
+	// Heavy package should have lower score than light one
+	lightInput := input
+	lightInput.UnpackedSize = 100 * 1024 // 0.1 MB
+	lightResult := health.CalculateScore(lightInput)
+
+	if result.Score >= lightResult.Score {
+		t.Errorf("expected heavy package score %d < light package score %d", result.Score, lightResult.Score)
 	}
 }

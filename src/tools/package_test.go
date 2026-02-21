@@ -49,11 +49,11 @@ func TestPackageTool(t *testing.T) {
 	defer server.Close()
 
 	npmClient := npm.NewClient(npm.WithBaseURL(server.URL))
-	handler := tools.NewPackageHandler(npmClient)
+	handler := tools.NewPackageHandler(npmClient, nil)
 
 	req := &mcp.CallToolRequest{}
 	input := tools.PackageInput{
-		Name: "lodash",
+		Name: testPackageName,
 	}
 
 	result, output, err := handler(context.Background(), req, input)
@@ -65,8 +65,8 @@ func TestPackageTool(t *testing.T) {
 		t.Fatalf("unexpected error result")
 	}
 
-	if output.Name != "lodash" {
-		t.Errorf("expected lodash, got %s", output.Name)
+	if output.Name != testPackageName {
+		t.Errorf("expected %s, got %s", testPackageName, output.Name)
 	}
 
 	if output.License != "MIT" {
@@ -91,5 +91,39 @@ func TestPackageTool(t *testing.T) {
 
 	if output.Engines == nil || output.Engines["node"] != ">=14" {
 		t.Errorf("expected engines with node, got %v", output.Engines)
+	}
+}
+
+func TestReadmeTool(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name": "lodash",
+			"readme": "# Lodash\n\nUtility library."
+		}`))
+	}))
+	defer server.Close()
+
+	npmClient := npm.NewClient(npm.WithBaseURL(server.URL))
+	handler := tools.NewReadmeHandler(npmClient, nil)
+
+	req := &mcp.CallToolRequest{}
+	input := tools.ReadmeInput{
+		Name: testPackageName,
+	}
+
+	_, output, err := handler(context.Background(), req, input)
+	if err != nil {
+		t.Fatalf("handler failed: %v", err)
+	}
+
+	if output.Name != testPackageName {
+		t.Errorf("expected %s, got %s", testPackageName, output.Name)
+	}
+
+	if output.Readme != "# Lodash\n\nUtility library." {
+		t.Errorf("expected readme, got %s", output.Readme)
 	}
 }
